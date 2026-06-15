@@ -1,0 +1,54 @@
+<?php
+
+namespace App\Models;
+
+use App\Traits\Filterable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+
+class Team extends Model
+{
+    use Filterable, HasFactory;
+
+    /**
+     * @var list<string>
+     */
+    protected $fillable = [
+        'name',
+        'manager_id',
+        'is_active',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+        ];
+    }
+
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    public function members(): HasMany
+    {
+        return $this->hasMany(User::class, 'team_id');
+    }
+
+    public function leads(): HasMany
+    {
+        return $this->hasMany(Lead::class, 'team_id');
+    }
+
+    /**
+     * Appointments belonging to this team, via its members (agents).
+     */
+    public function appointments(): HasManyThrough
+    {
+        return $this->hasManyThrough(Appointment::class, User::class, 'team_id', 'agent_id');
+    }
+}

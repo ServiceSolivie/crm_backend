@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php -v)",
+      "Bash(composer -V)",
+      "Bash(composer create-project *)",
+      "Bash(php artisan *)",
+      "Bash(./vendor/bin/pint --test)",
+      "Bash(./vendor/bin/pint)",
+      "Bash(composer require *)",
+      "Bash(kill %1)",
+      "Bash(jq --version)",
+      "Bash(cd /tmp)",
+      "Bash(cat sa.token)",
+      "Bash(cat agent.token)",
+      "Bash(cat manager.token)",
+      "Bash(cat lead.id)",
+      "Bash(curl -sv 'http://127.0.0.1:8123/api/v1/leads?filter[status]=NRP&sort=-created_at' -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(curl -s -o /tmp/out.json -w 'HTTP_CODE:%{http_code}\\\\n' 'http://127.0.0.1:8123/api/v1/leads?filter[status]=NRP&sort=-created_at' -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(cat /tmp/out.json)",
+      "Bash(curl -sg -o /tmp/out.json -w 'HTTP_CODE:%{http_code}\\\\n' 'http://127.0.0.1:8123/api/v1/leads?filter[status]=NRP&sort=-created_at' -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(echo \"--- agent tries to assign \\(should be 403\\) ---\")",
+      "Bash(curl -s -o /tmp/out.json -w 'HTTP_CODE:%{http_code}\\\\n' -X POST http://127.0.0.1:8123/api/v1/leads/__TRACKED_VAR__/assign -H 'Authorization: Bearer __TRACKED_VAR__' -H 'Content-Type: application/json' -d '{\"assigned_to\":1}')",
+      "Bash(echo)",
+      "Bash(echo \"--- agent tries to delete \\(should be 403\\) ---\")",
+      "Bash(curl -s -o /tmp/out.json -w 'HTTP_CODE:%{http_code}\\\\n' -X DELETE http://127.0.0.1:8123/api/v1/leads/__TRACKED_VAR__ -H 'Authorization: Bearer __TRACKED_VAR__')",
+      "Bash(taskkill //F //IM php.exe)",
+      "Bash(cat app/Http/Resources/UserResource.php)",
+      "Bash(cat app/Services/BaseService.php)",
+      "Bash(cat app/Repositories/Eloquent/UserRepository.php)",
+      "Bash(cat app/Repositories/Contracts/UserRepositoryInterface.php)",
+      "Bash(cat app/Filters/Filterable.php)",
+      "Bash(cat app/Exceptions/ApiException.php)",
+      "Bash(./vendor/bin/pint app/Filters/UserFilter.php app/Models/User.php app/Repositories app/Services/UserService.php app/Http/Requests/User app/Http/Resources/UserResource.php app/Http/Controllers/Api/V1/UserController.php app/Policies/UserPolicy.php routes/api/v1/users.php routes/api.php)",
+      "Bash(./vendor/bin/pint app/Filters/LeadSourceFilter.php app/Models/LeadSource.php app/Repositories app/Services/LeadSourceService.php app/Http/Requests/LeadSource app/Http/Resources/LeadSourceResource.php app/Http/Controllers/Api/V1/LeadSourceController.php app/Policies/LeadSourcePolicy.php routes/api/v1/lead-sources.php routes/api.php app/Providers/RepositoryServiceProvider.php)",
+      "Bash(./vendor/bin/pint app/Filters/AppointmentReminderFilter.php app/Models/AppointmentReminder.php app/Repositories app/Services/AppointmentReminderService.php app/Http/Requests/AppointmentReminder app/Http/Resources/AppointmentReminderResource.php app/Http/Controllers/Api/V1/AppointmentReminderController.php app/Policies/AppointmentPolicy.php routes/api/v1/appointments.php app/Providers/RepositoryServiceProvider.php)",
+      "Bash(./vendor/bin/pint app/Filters/LeadImportFilter.php app/Models/LeadImport.php app/Repositories app/Services/LeadImportService.php app/Http/Requests/LeadImport app/Http/Resources/LeadImportResource.php app/Http/Controllers/Api/V1/LeadImportController.php app/Policies/LeadImportPolicy.php routes/api/v1/lead-imports.php routes/api.php app/Providers/RepositoryServiceProvider.php)",
+      "Bash(rm -f /tmp/serve.log /tmp/leads_import.csv /tmp/bad.csv)",
+      "Bash(rm -rf storage/app/private/lead-imports)"
+    ]
+  }
+}

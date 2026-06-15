@@ -1,0 +1,332 @@
+app:
+name: CRM Assurance et Crédit
+description: >
+Développer une application CRM web complète avec Laravel,
+Bootstrap 5, JavaScript Vanilla et MySQL pour la gestion
+des leads, rendez-vous, pipeline commercial et équipes.
+
+stack:
+backend: Laravel
+frontend: Bootstrap 5
+javascript: Vanilla JS
+database: MySQL
+authentication: Laravel Breeze
+charts: Chart.js
+tables: DataTables
+export:
+- Excel
+- PDF
+
+architecture:
+pattern:
+- MVC
+- Repository
+- Service Layer
+validation:
+- Form Requests
+security:
+- Middleware
+- RBAC
+features:
+- Pagination
+- Search
+- Notifications
+- Dashboard
+- Responsive
+
+authentication:
+
+roles:
+
+```
+super_admin:
+  permissions:
+    - manage_users
+    - manage_teams
+    - manage_all_leads
+    - manage_pipeline
+    - manage_appointments
+    - view_statistics
+
+manager:
+  permissions:
+    - manage_team
+    - assign_leads
+    - manage_pipeline
+    - manage_appointments
+    - view_team_dashboard
+
+agent:
+  permissions:
+    - view_assigned_leads
+    - update_status
+    - create_reminders
+    - manage_personal_appointments
+```
+
+database:
+
+tables:
+
+```
+users:
+  fields:
+    - id
+    - name
+    - email
+    - password
+    - role
+
+teams:
+  fields:
+    - id
+    - name
+    - manager_id
+
+leads:
+  fields:
+    - id
+    - reference
+    - first_name
+    - last_name
+    - phone
+    - email
+    - city
+    - birth_date
+    - source
+    - insurance_type
+    - status
+    - assigned_to
+    - team_id
+    - meeting_id
+    - created_by
+    - comment
+    - created_at
+
+  insurance_types:
+    - AUTO
+    - MOTO
+    - RC_PRO
+    - MUTUELLE_SANTE
+    - EMPRUNTEUR
+    - CREDIT_CONSOMMATION
+    - RACHAT_CREDIT
+    - CREDIT_IMMOBILIER
+
+  statuses:
+    - NRP
+    - VALIDE
+    - RAPPEL
+    - RENDEZ_VOUS_ASSURE
+    - PAS_INTERESSEE
+
+appointments:
+  fields:
+    - id
+    - lead_id
+    - agent_id
+    - meeting_date
+    - meeting_time
+    - status
+    - location
+    - notes
+
+  statuses:
+    - PLANIFIE
+    - REALISE
+    - ANNULE
+    - REPORTE
+```
+
+relations:
+
+User:
+hasMany:
+- Lead
+
+Team:
+belongsTo:
+- Manager
+hasMany:
+- Agents
+- Leads
+
+Lead:
+belongsTo:
+- User
+- Team
+hasMany:
+- Appointment
+
+Appointment:
+belongsTo:
+- Lead
+
+modules:
+
+dashboard:
+
+```
+widgets:
+  - total_leads
+  - total_appointments
+  - conversion_rate
+  - top_agents
+  - monthly_statistics
+  - insurance_distribution
+  - calendar
+```
+
+leads:
+
+```
+routes:
+  - /leads
+  - /leads/create
+  - /leads/{id}
+  - /leads/{id}/edit
+
+features:
+  - create
+  - update
+  - delete
+  - assign
+  - import_csv
+  - export_excel
+  - search
+  - filter
+  - activity_history
+  - comments
+  - notes
+
+dashboard:
+  - total
+  - conversion
+  - by_status
+  - by_type
+```
+
+pipeline:
+
+```
+type: kanban
+
+columns:
+  - NRP
+  - VALIDE
+  - RAPPEL
+  - RENDEZ_VOUS_ASSURE
+  - PAS_INTERESSEE
+
+features:
+  - drag_drop
+  - ajax_update
+  - history
+  - counters
+  - filters
+
+route:
+  - /pipeline
+```
+
+appointments:
+
+```
+routes:
+  - /appointments
+
+views:
+  - daily
+  - weekly
+  - monthly
+
+features:
+  - create
+  - reminders
+  - notifications
+  - statistics
+```
+
+teams:
+
+```
+routes:
+  - /teams
+  - /teams/create
+  - /teams/{id}
+
+features:
+  - create
+  - assign_agents
+  - statistics
+  - activity
+```
+
+ui:
+
+layout:
+
+```
+sidebar:
+  - Dashboard
+  - Leads
+  - Pipeline
+  - RendezVous
+  - Equipes
+  - Utilisateurs
+  - Rapports
+  - Parametres
+
+navbar:
+  - Notifications
+  - Profil
+  - Logout
+```
+
+theme:
+responsive: true
+dark_mode: true
+
+javascript:
+
+features:
+- ajax_crud
+- drag_drop
+- modals
+- validation
+- notifications
+- charts
+
+reports:
+
+export:
+- pdf
+- excel
+
+filters:
+- date
+- team
+- agent
+- insurance_type
+
+extras:
+
+* activity_logs
+* rest_api
+* swagger
+* docker
+* unit_tests
+* seeders
+* realtime_dashboard
+
+output:
+
+generate:
+- migrations
+- models
+- controllers
+- services
+- routes
+- blade_views
+- seeders
+- folder_structure
