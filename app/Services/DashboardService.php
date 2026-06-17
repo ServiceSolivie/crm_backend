@@ -9,7 +9,10 @@ use Illuminate\Database\Eloquent\Builder;
 
 class DashboardService
 {
-    public function __construct(protected DashboardRepositoryInterface $dashboard) {}
+    public function __construct(
+        protected DashboardRepositoryInterface $dashboard,
+        protected AppointmentService $appointments,
+    ) {}
 
     /**
      * Whether the given user may view any dashboard data at all.
@@ -66,20 +69,24 @@ class DashboardService
 
     /**
      * Resolve the lead/appointment query scopes and visibility level for
-     * the given user, based on their dashboard permissions.
+     * the given user. Lead scoping follows the user's dashboard permissions;
+     * appointment scoping always follows AppointmentService::visibilityScope()
+     * so dashboard widgets stay consistent with the appointments module.
      *
      * @return array{0: ?\Closure, 1: ?\Closure, 2: string}
      */
     protected function scopes(User $user): array
     {
+        $appointmentScope = $this->appointments->visibilityScope($user);
+
         if ($user->can(PermissionEnum::DASHBOARD_VIEW_GLOBAL->value)) {
-            return [null, null, 'GLOBAL'];
+            return [null, $appointmentScope, 'GLOBAL'];
         }
 
         if ($user->can(PermissionEnum::DASHBOARD_VIEW_TEAM->value)) {
             return [
                 fn (Builder $query) => $query->where('team_id', $user->team_id),
-                fn (Builder $query) => $query->whereHas('agent', fn (Builder $q) => $q->where('team_id', $user->team_id)),
+                $appointmentScope,
                 'TEAM',
             ];
         }
@@ -87,14 +94,14 @@ class DashboardService
         if ($user->can(PermissionEnum::DASHBOARD_VIEW_PERSONAL->value)) {
             return [
                 fn (Builder $query) => $query->where('assigned_to', $user->id),
-                fn (Builder $query) => $query->where('agent_id', $user->id),
+                $appointmentScope,
                 'PERSONAL',
             ];
         }
 
         return [
             fn (Builder $query) => $query->whereRaw('1 = 0'),
-            fn (Builder $query) => $query->whereRaw('1 = 0'),
+            $appointmentScope,
             'NONE',
         ];
     }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\LeadAppointmentController;
 use App\Http\Controllers\Api\V1\LeadController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,4 +19,7 @@ Route::middleware(['auth:sanctum', 'active'])->prefix('leads')->name('leads.')->
 
     Route::get('/{lead}/status-history', [LeadController::class, 'statusHistory'])->name('status-history');
     Route::get('/{lead}/assignment-history', [LeadController::class, 'assignmentHistory'])->name('assignment-history');
+
+    Route::get('/{lead}/appointments', [LeadAppointmentController::class, 'index'])->name('appointments.index');
+    Route::post('/{lead}/appointments', [LeadAppointmentController::class, 'store'])->name('appointments.store');
 });

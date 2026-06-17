@@ -36,7 +36,13 @@
       "Bash(./vendor/bin/pint app/Filters/AppointmentReminderFilter.php app/Models/AppointmentReminder.php app/Repositories app/Services/AppointmentReminderService.php app/Http/Requests/AppointmentReminder app/Http/Resources/AppointmentReminderResource.php app/Http/Controllers/Api/V1/AppointmentReminderController.php app/Policies/AppointmentPolicy.php routes/api/v1/appointments.php app/Providers/RepositoryServiceProvider.php)",
       "Bash(./vendor/bin/pint app/Filters/LeadImportFilter.php app/Models/LeadImport.php app/Repositories app/Services/LeadImportService.php app/Http/Requests/LeadImport app/Http/Resources/LeadImportResource.php app/Http/Controllers/Api/V1/LeadImportController.php app/Policies/LeadImportPolicy.php routes/api/v1/lead-imports.php routes/api.php app/Providers/RepositoryServiceProvider.php)",
       "Bash(rm -f /tmp/serve.log /tmp/leads_import.csv /tmp/bad.csv)",
-      "Bash(rm -rf storage/app/private/lead-imports)"
+      "Bash(rm -rf storage/app/private/lead-imports)",
+      "Bash(php -r \"require 'vendor/autoload.php'; new \\\\App\\\\Enums\\\\AppointmentStatusEnum;\")",
+      "Bash(git *)",
+      "Bash(php -l app/Services/DashboardService.php)",
+      "Bash(php -l app/Services/AppointmentService.php)",
+      "Bash(php -l app/Policies/AppointmentPolicy.php)",
+      "Bash(php -l database/seeders/RoleSeeder.php)"
     ]
   }
 }

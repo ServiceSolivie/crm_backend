@@ -27,9 +27,7 @@ class DashboardController extends Controller
     public function statistics(DashboardFilterRequest $request): JsonResponse
     {
         $user = $request->user();
-
         abort_unless($this->dashboardService->canView($user), 403, 'You do not have permission to view the dashboard.');
-
         return $this->success($this->dashboardService->statistics(
             $user,
             $request->validated('from'),

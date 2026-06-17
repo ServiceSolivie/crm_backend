@@ -66,8 +66,8 @@ class AppointmentPolicy
 
     /**
      * A user may access an appointment if they can see all appointments,
-     * see their team's appointments and the agent belongs to their team,
-     * or see their own appointments and they are the assigned agent.
+     * see their team's appointments and the appointment's lead belongs to
+     * their team, or see their own appointments and they are the assigned agent.
      */
     protected function canAccess(User $user, Appointment $appointment): bool
     {
@@ -77,7 +77,7 @@ class AppointmentPolicy
 
         if ($user->can(PermissionEnum::APPOINTMENTS_VIEW_TEAM->value)
             && $user->team_id !== null
-            && $appointment->agent?->team_id === $user->team_id) {
+            && $appointment->lead?->team_id === $user->team_id) {
             return true;
         }
 

@@ -38,7 +38,7 @@ class RoleSeeder extends Seeder
             PermissionEnum::PIPELINE_VIEW->value,
             PermissionEnum::PIPELINE_UPDATE_STATUS->value,
 
-            PermissionEnum::APPOINTMENTS_VIEW_TEAM->value,
+            PermissionEnum::APPOINTMENTS_VIEW_ALL->value,
             PermissionEnum::APPOINTMENTS_CREATE->value,
             PermissionEnum::APPOINTMENTS_UPDATE->value,
             PermissionEnum::APPOINTMENTS_DELETE->value,

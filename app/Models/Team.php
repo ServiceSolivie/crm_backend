@@ -45,10 +45,11 @@ class Team extends Model
     }
 
     /**
-     * Appointments belonging to this team, via its members (agents).
+     * Appointments belonging to this team, via its leads.
+     * An appointment belongs to a lead; the lead belongs to a team.
      */
     public function appointments(): HasManyThrough
     {
-        return $this->hasManyThrough(Appointment::class, User::class, 'team_id', 'agent_id');
+        return $this->hasManyThrough(Appointment::class, Lead::class, 'team_id', 'lead_id');
     }
 }

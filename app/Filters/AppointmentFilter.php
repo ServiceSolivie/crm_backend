@@ -32,7 +32,7 @@ class AppointmentFilter extends QueryFilter
 
     protected function teamId(string $value): void
     {
-        $this->builder->whereHas('agent', fn ($query) => $query->where('team_id', $value));
+        $this->builder->whereHas('lead', fn ($query) => $query->where('team_id', $value));
     }
 
     protected function from(string $value): void

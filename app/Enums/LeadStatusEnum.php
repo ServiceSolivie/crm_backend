@@ -18,11 +18,11 @@ enum LeadStatusEnum: string implements HasLabel
     public function label(): string
     {
         return match ($this) {
-            self::NRP => 'No Reply / Not Reachable',
-            self::VALIDE => 'Validated',
-            self::RAPPEL => 'Callback Scheduled',
-            self::RENDEZ_VOUS_ASSURE => 'Appointment Confirmed',
-            self::PAS_INTERESSEE => 'Not Interested',
+            self::NRP => 'NRP (Ne Répond Pas)',
+            self::VALIDE => 'Validé',
+            self::RAPPEL => 'Rappel Programmé',
+            self::RENDEZ_VOUS_ASSURE => 'Rendez-vous Confirmé',
+            self::PAS_INTERESSEE => 'Pas Intéressé(e)',
         };
     }
 }
