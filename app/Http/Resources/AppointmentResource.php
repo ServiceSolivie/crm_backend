@@ -24,6 +24,7 @@ class AppointmentResource extends BaseResource
                 'first_name' => $this->lead->first_name,
                 'last_name' => $this->lead->last_name,
                 'phone' => $this->lead->phone,
+                'insurance_type' => $this->lead->insurance_type->value
             ]),
             'agent' => $this->whenLoaded('agent', fn () => [
                 'id' => $this->agent->id,

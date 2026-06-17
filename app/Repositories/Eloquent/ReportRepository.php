@@ -31,7 +31,7 @@ class ReportRepository implements ReportRepositoryInterface
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
             }])
             ->withCount(['appointments as completed_appointments' => function (Builder $query) use ($from, $to) {
-                $query->where('status', AppointmentStatusEnum::REALISE->value);
+                $query->where('appointments.status', AppointmentStatusEnum::REALISE->value);
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
             }]);
 

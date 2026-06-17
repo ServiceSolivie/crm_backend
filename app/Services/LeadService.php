@@ -64,6 +64,10 @@ class LeadService extends BaseService
         $data['created_by'] = $creator->id;
         $data['status'] = $data['status'] ?? LeadStatusEnum::NRP->value;
 
+        if (! empty($data['assigned_to']) && empty($data['team_id'])) {
+            $data['team_id'] = User::find($data['assigned_to'])?->team_id;
+        }
+
         /** @var Lead $lead */
         $lead = $this->leads->create($data);
 
@@ -101,8 +105,12 @@ class LeadService extends BaseService
     public function assign(Lead $lead, int $toUserId, User $assignedBy): Lead
     {
         $fromUserId = $lead->assigned_to;
+        $toUser = User::findOrFail($toUserId);
 
-        $lead->update(['assigned_to' => $toUserId]);
+        $lead->update([
+            'assigned_to' => $toUserId,
+            'team_id' => $toUser->team_id,
+        ]);
 
         $lead->assignmentHistories()->create([
             'from_user_id' => $fromUserId,

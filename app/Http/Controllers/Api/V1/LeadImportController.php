@@ -10,6 +10,7 @@ use App\Models\LeadImport;
 use App\Services\LeadImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class LeadImportController extends Controller
 {
@@ -28,13 +29,14 @@ class LeadImportController extends Controller
 
     public function store(StoreLeadImportRequest $request): JsonResponse
     {
+        Log::info('Importing leads');
         $this->authorize('create', LeadImport::class);
 
         $import = $this->leadImportService->import($request->file('file'), $request->user());
 
         $import->load('importedBy');
         $import->errors = $this->leadImportService->errors($import);
-
+        Log::info('errors: ' . json_encode($import->errors));
         return $this->created(new LeadImportResource($import), 'Leads imported');
     }
 
