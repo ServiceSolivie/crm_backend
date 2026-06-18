@@ -42,7 +42,9 @@
       "Bash(php -l app/Services/DashboardService.php)",
       "Bash(php -l app/Services/AppointmentService.php)",
       "Bash(php -l app/Policies/AppointmentPolicy.php)",
-      "Bash(php -l database/seeders/RoleSeeder.php)"
+      "Bash(php -l database/seeders/RoleSeeder.php)",
+      "Bash(php -l app/Filters/QueryFilter.php)",
+      "Bash(php -l app/Filters/LeadFilter.php)"
     ]
   }
 }

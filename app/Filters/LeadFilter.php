@@ -5,18 +5,18 @@ namespace App\Filters;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Supported query parameters:
+ * Supported query parameters (flat or nested under filter[...]):
  *
- *   GET /leads?filter[status]=VALIDE
- *   GET /leads?filter[insurance_type]=AUTO
- *   GET /leads?filter[team_id]=3
- *   GET /leads?filter[assigned_to]=7
- *   GET /leads?filter[lead_source_id]=2
- *   GET /leads?filter[city]=Paris
- *   GET /leads?filter[search]=John          (matches reference, name, phone, email)
- *   GET /leads?filter[from]=2026-06-01      (created_at >=)
- *   GET /leads?filter[to]=2026-06-30        (created_at <=)
- *   GET /leads?sort=-created_at,reference
+ *   GET /leads?status=VALIDE
+ *   GET /leads?insurance_type=AUTO
+ *   GET /leads?team_id=3
+ *   GET /leads?assigned_to=7
+ *   GET /leads?lead_source_id=2 (alias: source_id)
+ *   GET /leads?city=Paris
+ *   GET /leads?search=John                 (matches reference, name, phone, email)
+ *   GET /leads?from=2026-06-01              (created_at >=)
+ *   GET /leads?to=2026-06-30                (created_at <=)
+ *   GET /leads?sort=-created_at,reference   or  ?sort_by=created_at&sort_dir=desc
  */
 class LeadFilter extends QueryFilter
 {
@@ -41,6 +41,11 @@ class LeadFilter extends QueryFilter
     }
 
     protected function leadSourceId(string $value): void
+    {
+        $this->builder->where('lead_source_id', $value);
+    }
+
+    protected function sourceId(string $value): void
     {
         $this->builder->where('lead_source_id', $value);
     }
