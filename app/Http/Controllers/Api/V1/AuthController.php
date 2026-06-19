@@ -9,6 +9,8 @@ use App\Http\Resources\UserResource;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Http\Requests\Auth\ChangePasswordRequest;
+use App\Http\Requests\Auth\UpdateProfileRequest;
 
 class AuthController extends Controller
 {
@@ -44,5 +46,31 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return $this->success(new UserResource($request->user()), 'Authenticated user');
+    }
+
+    public function updateProfile(UpdateProfileRequest $request): JsonResponse
+    {
+        $user = $this->authService->updateProfile(
+            $request->user(),
+            $request->validated()
+        );
+
+        return $this->success(
+            new UserResource($user),
+            'Profile updated successfully'
+        );
+    }
+
+    public function changePassword(ChangePasswordRequest $request): JsonResponse
+    {
+        $this->authService->changePassword(
+            $request->user(),
+            $request->validated()
+        );
+
+        return $this->success(
+            null,
+            'Password updated successfully'
+        );
     }
 }

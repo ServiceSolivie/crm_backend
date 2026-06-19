@@ -7,6 +7,7 @@ use App\Exceptions\ApiException;
 use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
@@ -68,5 +69,35 @@ class AuthService
     public function logout(User $user): void
     {
         $user->currentAccessToken()?->delete();
+    }
+
+    public function updateProfile(User $user, array $data): User
+    {
+        $user->update([
+            'name' => $data['name'],
+            'email' => $data['email'],
+        ]);
+
+        return $user->fresh();
+    }
+
+    public function changePassword(User $user, array $data): void
+    {
+        if (! Hash::check(
+            $data['current_password'],
+            $user->password
+        )) {
+            throw ValidationException::withMessages([
+                'current_password' => [
+                    'Current password is incorrect'
+                ]
+            ]);
+        }
+
+        $user->update([
+            'password' => Hash::make(
+                $data['password']
+            ),
+        ]);
     }
 }
