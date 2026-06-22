@@ -70,6 +70,17 @@ enum PermissionEnum: string implements HasLabel
     case REPORTS_VIEW_TEAM = 'reports.view_team';
     case REPORTS_EXPORT = 'reports.export';
 
+    // Payments
+    case PAYMENTS_CREATE = 'payments.create';
+    case PAYMENTS_VIEW = 'payments.view';
+    case PAYMENTS_DELETE = 'payments.delete';
+
+    // Revenue
+    case REVENUE_VIEW_ALL = 'revenue.view_all';
+    case REVENUE_VIEW_TEAM = 'revenue.view_team';
+    case REVENUE_VIEW_PERSONAL = 'revenue.view_personal';
+    case REVENUE_SET = 'revenue.set';
+
     // Notifications
     case NOTIFICATIONS_VIEW = 'notifications.view';
 
@@ -121,6 +132,15 @@ enum PermissionEnum: string implements HasLabel
             self::REPORTS_VIEW_ALL => 'View all reports',
             self::REPORTS_VIEW_TEAM => 'View team reports',
             self::REPORTS_EXPORT => 'Export reports',
+
+            self::PAYMENTS_CREATE => 'Enregistrer des paiements',
+            self::PAYMENTS_VIEW => 'Voir les paiements',
+            self::PAYMENTS_DELETE => 'Supprimer des paiements',
+
+            self::REVENUE_VIEW_ALL => 'Voir le chiffre d\'affaires global',
+            self::REVENUE_VIEW_TEAM => 'Voir le chiffre d\'affaires équipe',
+            self::REVENUE_VIEW_PERSONAL => 'Voir son chiffre d\'affaires',
+            self::REVENUE_SET => 'Définir le montant attendu',
 
             self::NOTIFICATIONS_VIEW => 'View notifications',
 

@@ -8,4 +8,5 @@ Route::middleware(['auth:sanctum', 'active'])->prefix('dashboard')->name('dashbo
     Route::get('/statistics', [DashboardController::class, 'statistics'])->name('statistics');
     Route::get('/aggregations', [DashboardController::class, 'aggregations'])->name('aggregations');
     Route::get('/charts', [DashboardController::class, 'charts'])->name('charts');
+    Route::get('/revenue', [DashboardController::class, 'revenue'])->name('revenue');
 });

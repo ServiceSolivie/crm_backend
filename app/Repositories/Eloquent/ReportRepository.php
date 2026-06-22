@@ -4,6 +4,7 @@ namespace App\Repositories\Eloquent;
 
 use App\Enums\AppointmentStatusEnum;
 use App\Enums\LeadStatusEnum;
+use App\Enums\PaymentStatusEnum;
 use App\Enums\RoleEnum;
 use App\Models\Lead;
 use App\Models\Team;
@@ -108,6 +109,68 @@ class ReportRepository implements ReportRepositoryInterface
         }
 
         return $query->orderByDesc('total')->paginate($perPage);
+    }
+
+    public function paginateRevenueReport(?Closure $scope, ?string $paymentStatus, ?int $teamId, ?int $agentId, ?string $from, ?string $to, int $perPage): LengthAwarePaginator
+    {
+        $query = $this->revenueBaseQuery($scope, $paymentStatus, $teamId, $agentId, $from, $to)
+            ->with(['assignedAgent:id,name', 'team:id,name'])
+            ->withSum('payments', 'amount')
+            ->withCount('payments')
+            ->orderByDesc('validated_at');
+
+        return $query->paginate($perPage);
+    }
+
+    public function revenueSummary(?Closure $scope, ?string $paymentStatus, ?int $teamId, ?int $agentId, ?string $from, ?string $to): array
+    {
+        $query = $this->revenueBaseQuery($scope, $paymentStatus, $teamId, $agentId, $from, $to);
+
+        $totalExpected = (clone $query)->sum('expected_revenue');
+        $leadsCount = (clone $query)->count();
+
+        $byStatus = (clone $query)
+            ->selectRaw('payment_status, count(*) as aggregate')
+            ->groupBy('payment_status')
+            ->pluck('aggregate', 'payment_status');
+
+        $leadIds = (clone $query)->select('id');
+        $totalReceived = \App\Models\Payment::whereIn('lead_id', $leadIds)->sum('amount');
+
+        return [
+            'total_expected' => round((float) $totalExpected, 2),
+            'total_received' => round((float) $totalReceived, 2),
+            'total_remaining' => round((float) bcsub((string) $totalExpected, (string) $totalReceived, 2), 2),
+            'leads_count' => $leadsCount,
+            'fully_paid' => (int) ($byStatus[PaymentStatusEnum::PAYE->value] ?? 0),
+            'partially_paid' => (int) ($byStatus[PaymentStatusEnum::PARTIELLEMENT_PAYE->value] ?? 0),
+            'unpaid' => (int) ($byStatus[PaymentStatusEnum::NON_PAYE->value] ?? 0),
+        ];
+    }
+
+    protected function revenueBaseQuery(?Closure $scope, ?string $paymentStatus, ?int $teamId, ?int $agentId, ?string $from, ?string $to): Builder
+    {
+        $query = Lead::query()->where('status', LeadStatusEnum::VALIDE->value);
+
+        if ($scope) {
+            $scope($query);
+        }
+
+        if ($paymentStatus) {
+            $query->where('payment_status', $paymentStatus);
+        }
+
+        if ($teamId) {
+            $query->where('team_id', $teamId);
+        }
+
+        if ($agentId) {
+            $query->where('assigned_to', $agentId);
+        }
+
+        $this->applyDateRange($query, 'validated_at', $from, $to);
+
+        return $query;
     }
 
     protected function applyDateRange(Builder $query, string $column, ?string $from, ?string $to): void

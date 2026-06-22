@@ -7,11 +7,13 @@ use App\Filters\LeadFilter;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Report\AgentReportRequest;
 use App\Http\Requests\Report\ConversionReportRequest;
+use App\Http\Requests\Report\RevenueReportRequest;
 use App\Http\Requests\Report\TeamReportRequest;
 use App\Http\Resources\AgentReportResource;
 use App\Http\Resources\AppointmentResource;
 use App\Http\Resources\ConversionReportResource;
 use App\Http\Resources\LeadResource;
+use App\Http\Resources\RevenueReportResource;
 use App\Http\Resources\TeamReportResource;
 use App\Services\ReportService;
 use Illuminate\Http\JsonResponse;
@@ -84,6 +86,45 @@ class ReportController extends Controller
         );
 
         return $this->success(AgentReportResource::collection($agents));
+    }
+
+    public function revenue(RevenueReportRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless($this->reportService->canViewRevenue($user), 403, 'Vous n\'avez pas la permission de consulter le rapport de chiffre d\'affaires.');
+
+        $perPage = (int) ($request->validated('per_page') ?? 15);
+
+        $leads = $this->reportService->revenueReport(
+            $user,
+            $request->validated('payment_status'),
+            $request->validated('team_id') !== null ? (int) $request->validated('team_id') : null,
+            $request->validated('agent_id') !== null ? (int) $request->validated('agent_id') : null,
+            $request->validated('from'),
+            $request->validated('to'),
+            $perPage,
+        );
+
+        return $this->success(RevenueReportResource::collection($leads));
+    }
+
+    public function revenueSummary(RevenueReportRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless($this->reportService->canViewRevenue($user), 403, 'Vous n\'avez pas la permission de consulter le rapport de chiffre d\'affaires.');
+
+        $summary = $this->reportService->revenueSummary(
+            $user,
+            $request->validated('payment_status'),
+            $request->validated('team_id') !== null ? (int) $request->validated('team_id') : null,
+            $request->validated('agent_id') !== null ? (int) $request->validated('agent_id') : null,
+            $request->validated('from'),
+            $request->validated('to'),
+        );
+
+        return $this->success($summary);
     }
 
     public function conversion(ConversionReportRequest $request): JsonResponse

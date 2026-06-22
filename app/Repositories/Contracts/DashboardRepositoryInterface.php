@@ -41,4 +41,12 @@ interface DashboardRepositoryInterface
      * @return array<string, mixed>
      */
     public function charts(?Closure $leadScope, ?Closure $appointmentScope, int $days): array;
+
+    /**
+     * Revenue KPIs, payment status distribution, method distribution,
+     * and monthly revenue trend for validated leads.
+     *
+     * @return array<string, mixed>
+     */
+    public function revenue(?Closure $leadScope, ?string $from, ?string $to): array;
 }

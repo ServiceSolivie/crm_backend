@@ -9,4 +9,6 @@ Route::middleware(['auth:sanctum', 'active'])->prefix('reports')->name('reports.
     Route::get('/teams', [ReportController::class, 'teams'])->name('teams');
     Route::get('/agents', [ReportController::class, 'agents'])->name('agents');
     Route::get('/conversion', [ReportController::class, 'conversion'])->name('conversion');
+    Route::get('/revenue', [ReportController::class, 'revenue'])->name('revenue');
+    Route::get('/revenue/summary', [ReportController::class, 'revenueSummary'])->name('revenue.summary');
 });

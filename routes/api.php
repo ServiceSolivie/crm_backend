@@ -24,6 +24,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     require __DIR__.'/api/v1/users.php';
     require __DIR__.'/api/v1/lead-sources.php';
     require __DIR__.'/api/v1/lead-imports.php';
+    require __DIR__.'/api/v1/payments.php';
 
     // Further module route files are required here as they are built.
 });

@@ -39,6 +39,13 @@ class LeadResource extends BaseResource
                 'id' => $this->team->id,
                 'name' => $this->team->name,
             ] : null),
+            'expected_revenue' => $this->expected_revenue,
+            'total_received' => $this->when($this->expected_revenue !== null, fn () => $this->total_received),
+            'remaining_amount' => $this->when($this->expected_revenue !== null, fn () => $this->remaining_amount),
+            'payment_status' => $this->payment_status?->value,
+            'payment_status_label' => $this->payment_status?->label(),
+            'validated_at' => $this->formatDate($this->validated_at),
+            'payments_count' => $this->whenCounted('payments'),
             'created_by' => $this->whenLoaded('creator', fn () => [
                 'id' => $this->creator->id,
                 'name' => $this->creator->name,

@@ -22,4 +22,16 @@ interface ReportRepositoryInterface
      * or insurance type), with total/validated counts and a conversion rate.
      */
     public function paginateConversionReport(string $groupBy, ?Closure $scope, ?string $from, ?string $to, int $perPage): LengthAwarePaginator;
+
+    /**
+     * Revenue report: validated leads with revenue data, payments sum, and status.
+     */
+    public function paginateRevenueReport(?Closure $scope, ?string $paymentStatus, ?int $teamId, ?int $agentId, ?string $from, ?string $to, int $perPage): LengthAwarePaginator;
+
+    /**
+     * Revenue summary KPIs for the report header.
+     *
+     * @return array<string, mixed>
+     */
+    public function revenueSummary(?Closure $scope, ?string $paymentStatus, ?int $teamId, ?int $agentId, ?string $from, ?string $to): array;
 }

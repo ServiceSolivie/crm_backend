@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\PermissionEnum;
 use App\Models\User;
 use App\Repositories\Contracts\DashboardRepositoryInterface;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 
 class DashboardService
@@ -65,6 +66,43 @@ class DashboardService
         [$leadScope, $appointmentScope] = $this->scopes($user);
 
         return $this->dashboard->charts($leadScope, $appointmentScope, $days);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function revenue(User $user, ?string $from = null, ?string $to = null): array
+    {
+        $scope = $this->revenueScope($user);
+
+        return $this->dashboard->revenue($scope, $from, $to);
+    }
+
+    /**
+     * Whether the given user may view revenue data.
+     */
+    public function canViewRevenue(User $user): bool
+    {
+        return $user->can(PermissionEnum::REVENUE_VIEW_ALL->value)
+            || $user->can(PermissionEnum::REVENUE_VIEW_TEAM->value)
+            || $user->can(PermissionEnum::REVENUE_VIEW_PERSONAL->value);
+    }
+
+    protected function revenueScope(User $user): ?Closure
+    {
+        if ($user->can(PermissionEnum::REVENUE_VIEW_ALL->value)) {
+            return null;
+        }
+
+        if ($user->can(PermissionEnum::REVENUE_VIEW_TEAM->value)) {
+            return fn (Builder $query) => $query->where('team_id', $user->team_id);
+        }
+
+        if ($user->can(PermissionEnum::REVENUE_VIEW_PERSONAL->value)) {
+            return fn (Builder $query) => $query->where('assigned_to', $user->id);
+        }
+
+        return fn (Builder $query) => $query->whereRaw('1 = 0');
     }
 
     /**

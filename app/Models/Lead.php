@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
+use App\Enums\PaymentStatusEnum;
 use App\Traits\Filterable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -34,6 +35,9 @@ class Lead extends Model
         'created_by',
         'lead_import_id',
         'comment',
+        'expected_revenue',
+        'payment_status',
+        'validated_at',
     ];
 
     protected function casts(): array
@@ -42,6 +46,9 @@ class Lead extends Model
             'birth_date' => 'date',
             'insurance_type' => InsuranceTypeEnum::class,
             'status' => LeadStatusEnum::class,
+            'expected_revenue' => 'decimal:2',
+            'payment_status' => PaymentStatusEnum::class,
+            'validated_at' => 'datetime',
         ];
     }
 
@@ -88,5 +95,24 @@ class Lead extends Model
     public function appointments(): HasMany
     {
         return $this->hasMany(Appointment::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function getTotalReceivedAttribute(): string
+    {
+        return $this->payments()->sum('amount');
+    }
+
+    public function getRemainingAmountAttribute(): string
+    {
+        if ($this->expected_revenue === null) {
+            return '0.00';
+        }
+
+        return bcsub($this->expected_revenue, $this->total_received, 2);
     }
 }

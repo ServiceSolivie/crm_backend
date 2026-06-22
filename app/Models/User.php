@@ -82,4 +82,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Appointment::class, 'agent_id');
     }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'created_by');
+    }
 }

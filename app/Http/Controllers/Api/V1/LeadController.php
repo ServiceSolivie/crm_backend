@@ -87,9 +87,15 @@ class LeadController extends Controller
 
         $status = LeadStatusEnum::from($request->validated('status'));
 
-        $lead = $this->leadService->updateStatus($lead, $status, $request->user(), $request->validated('comment'));
+        $lead = $this->leadService->updateStatus(
+            $lead,
+            $status,
+            $request->user(),
+            $request->validated('comment'),
+            $request->validated('expected_revenue'),
+        );
 
-        return $this->success(new LeadResource($lead), 'Lead status updated successfully');
+        return $this->success(new LeadResource($lead), 'Statut du lead mis à jour avec succès');
     }
 
     public function notes(Request $request, Lead $lead): JsonResponse

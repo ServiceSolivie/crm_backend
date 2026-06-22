@@ -5,8 +5,11 @@ namespace App\Repositories\Eloquent;
 use App\Enums\AppointmentStatusEnum;
 use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
+use App\Enums\PaymentMethodEnum;
+use App\Enums\PaymentStatusEnum;
 use App\Models\Appointment;
 use App\Models\Lead;
+use App\Models\Payment;
 use App\Repositories\Contracts\DashboardRepositoryInterface;
 use Carbon\Carbon;
 use Closure;
@@ -190,6 +193,91 @@ class DashboardRepository implements DashboardRepositoryInterface
             'leads_over_time' => $leadsOverTime,
             'appointments_over_time' => $appointmentsOverTime,
         ];
+    }
+
+    public function revenue(?Closure $leadScope, ?string $from, ?string $to): array
+    {
+        $validatedQuery = fn () => $this->validatedLeadQuery($leadScope, $from, $to);
+
+        $totalExpected = (clone $validatedQuery())->sum('expected_revenue');
+        $totalReceived = Payment::whereIn(
+            'lead_id',
+            (clone $validatedQuery())->select('id')
+        )->sum('amount');
+        $totalRemaining = bcsub((string) $totalExpected, (string) $totalReceived, 2);
+
+        $byPaymentStatus = (clone $validatedQuery())
+            ->selectRaw('payment_status, count(*) as aggregate')
+            ->groupBy('payment_status')
+            ->pluck('aggregate', 'payment_status');
+
+        $byPaymentMethod = Payment::whereIn(
+            'lead_id',
+            (clone $validatedQuery())->select('id')
+        )
+            ->selectRaw('payment_method, count(*) as aggregate, sum(amount) as total_amount')
+            ->groupBy('payment_method')
+            ->get()
+            ->map(fn ($row) => [
+                'method' => $row->payment_method instanceof PaymentMethodEnum ? $row->payment_method->value : $row->payment_method,
+                'label' => $row->payment_method instanceof PaymentMethodEnum ? $row->payment_method->label() : (PaymentMethodEnum::tryFrom($row->payment_method)?->label() ?? $row->payment_method),
+                'count' => (int) $row->aggregate,
+                'total_amount' => round((float) $row->total_amount, 2),
+            ])
+            ->values();
+
+        $monthlyTrend = (clone $validatedQuery())
+            ->selectRaw("DATE_FORMAT(validated_at, '%Y-%m') as month, count(*) as leads_count, sum(expected_revenue) as expected")
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->map(function ($row) use ($leadScope) {
+                $monthStart = Carbon::parse($row->month . '-01')->startOfDay();
+                $monthEnd = Carbon::parse($row->month . '-01')->endOfMonth()->endOfDay();
+
+                $received = Payment::whereIn(
+                    'lead_id',
+                    $this->validatedLeadQuery($leadScope, null, null)->select('id')
+                )
+                    ->whereBetween('payment_date', [$monthStart, $monthEnd])
+                    ->sum('amount');
+
+                return [
+                    'month' => $row->month,
+                    'leads_count' => (int) $row->leads_count,
+                    'expected' => round((float) $row->expected, 2),
+                    'received' => round((float) $received, 2),
+                ];
+            })
+            ->values();
+
+        return [
+            'kpis' => [
+                'total_expected' => round((float) $totalExpected, 2),
+                'total_received' => round((float) $totalReceived, 2),
+                'total_remaining' => round((float) $totalRemaining, 2),
+                'validated_leads' => (clone $validatedQuery())->count(),
+                'fully_paid' => (int) ($byPaymentStatus[PaymentStatusEnum::PAYE->value] ?? 0),
+                'partially_paid' => (int) ($byPaymentStatus[PaymentStatusEnum::PARTIELLEMENT_PAYE->value] ?? 0),
+                'unpaid' => (int) ($byPaymentStatus[PaymentStatusEnum::NON_PAYE->value] ?? 0),
+            ],
+            'by_payment_status' => $this->fillCounts(PaymentStatusEnum::values(), $byPaymentStatus),
+            'by_payment_method' => $byPaymentMethod,
+            'monthly_trend' => $monthlyTrend,
+        ];
+    }
+
+    protected function validatedLeadQuery(?Closure $scope, ?string $from, ?string $to): Builder
+    {
+        $query = Lead::query()->where('status', LeadStatusEnum::VALIDE->value);
+
+        if ($scope) {
+            $scope($query);
+        }
+
+        $this->applyDateRange($query, 'validated_at', $from, $to);
+
+        return $query;
     }
 
     protected function leadQuery(?Closure $scope, ?string $from, ?string $to): Builder

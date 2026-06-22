@@ -58,4 +58,17 @@ class DashboardController extends Controller
 
         return $this->success($this->dashboardService->charts($user, $days));
     }
+
+    public function revenue(DashboardFilterRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless($this->dashboardService->canViewRevenue($user), 403, 'Vous n\'avez pas la permission de consulter le chiffre d\'affaires.');
+
+        return $this->success($this->dashboardService->revenue(
+            $user,
+            $request->validated('from'),
+            $request->validated('to'),
+        ));
+    }
 }

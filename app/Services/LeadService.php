@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\LeadStatusEnum;
+use App\Enums\PaymentStatusEnum;
 use App\Enums\PermissionEnum;
 use App\Filters\LeadFilter;
 use App\Models\Lead;
@@ -12,6 +13,7 @@ use App\Repositories\Contracts\LeadRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class LeadService extends BaseService
 {
@@ -125,11 +127,33 @@ class LeadService extends BaseService
      * Move a lead to a new status, recording the transition in the
      * status history.
      */
-    public function updateStatus(Lead $lead, LeadStatusEnum $status, User $changedBy, ?string $comment = null): Lead
+    public function updateStatus(Lead $lead, LeadStatusEnum $status, User $changedBy, ?string $comment = null, ?string $expectedRevenue = null): Lead
     {
         $fromStatus = $lead->status;
 
-        $lead->update(['status' => $status->value]);
+        if ($fromStatus === LeadStatusEnum::VALIDE && $status !== LeadStatusEnum::VALIDE) {
+            if ($lead->payments()->exists()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Impossible de changer le statut : des paiements sont enregistrés. Supprimez tous les paiements d\'abord.',
+                ]);
+            }
+
+            $lead->update([
+                'status' => $status->value,
+                'expected_revenue' => null,
+                'payment_status' => null,
+                'validated_at' => null,
+            ]);
+        } elseif ($status === LeadStatusEnum::VALIDE && $fromStatus !== LeadStatusEnum::VALIDE) {
+            $lead->update([
+                'status' => $status->value,
+                'expected_revenue' => $expectedRevenue,
+                'payment_status' => PaymentStatusEnum::NON_PAYE->value,
+                'validated_at' => now(),
+            ]);
+        } else {
+            $lead->update(['status' => $status->value]);
+        }
 
         $lead->statusHistories()->create([
             'from_status' => $fromStatus,
@@ -138,7 +162,7 @@ class LeadService extends BaseService
             'comment' => $comment,
         ]);
 
-        return $lead->refresh();
+        return $lead->refresh()->load(['assignedAgent', 'team', 'leadSource', 'creator']);
     }
 
     public function addNote(Lead $lead, User $user, string $note): LeadNote
