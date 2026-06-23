@@ -20,6 +20,8 @@ class DashboardFilterRequest extends FormRequest
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'team_id' => ['nullable', 'integer', 'exists:teams,id'],
+            'agent_id' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }
 }
