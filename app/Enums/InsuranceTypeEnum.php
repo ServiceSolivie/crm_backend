@@ -17,6 +17,9 @@ enum InsuranceTypeEnum: string implements HasLabel
     case CREDIT_CONSOMMATION = 'CREDIT_CONSOMMATION';
     case RACHAT_CREDIT = 'RACHAT_CREDIT';
     case CREDIT_IMMOBILIER = 'CREDIT_IMMOBILIER';
+    case DECENNALE = 'DECENNALE';
+    case TAXI_VTC = 'TAXI_VTC';
+    case AUTRE = 'AUTRE';
 
     public function label(): string
     {
@@ -29,6 +32,9 @@ enum InsuranceTypeEnum: string implements HasLabel
             self::CREDIT_CONSOMMATION => 'Consumer Credit',
             self::RACHAT_CREDIT => 'Debt Consolidation',
             self::CREDIT_IMMOBILIER => 'Mortgage Credit',
+            self::DECENNALE => 'Décennale',
+            self::TAXI_VTC => 'Taxi / VTC',
+            self::AUTRE => 'Autre',
         };
     }
 }

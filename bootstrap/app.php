@@ -78,4 +78,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return ApiResponse::error('Server error.', 500);
         });
-    })->create();
+    })
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+        $schedule->command('google:sync-leads')->everyFifteenMinutes()->withoutOverlapping();
+    })
+    ->create();

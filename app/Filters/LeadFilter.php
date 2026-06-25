@@ -61,6 +61,7 @@ class LeadFilter extends QueryFilter
             $query->where('reference', 'like', "%{$value}%")
                 ->orWhere('first_name', 'like', "%{$value}%")
                 ->orWhere('last_name', 'like', "%{$value}%")
+                ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$value}%"])
                 ->orWhere('phone', 'like', "%{$value}%")
                 ->orWhere('email', 'like', "%{$value}%");
         });

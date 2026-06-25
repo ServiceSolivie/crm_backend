@@ -28,9 +28,7 @@ class LeadRepository extends BaseRepository implements LeadRepositoryInterface
         if ($scope) {
             $scope($query);
         }
-        Log::info('Lead filters', [
-            'filters' => $filters,
-        ]);
+
         return $query->filter($filters)->paginate($perPage);
     }
 
