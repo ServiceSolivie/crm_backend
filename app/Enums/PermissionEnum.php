@@ -81,6 +81,12 @@ enum PermissionEnum: string implements HasLabel
     case REVENUE_VIEW_PERSONAL = 'revenue.view_personal';
     case REVENUE_SET = 'revenue.set';
 
+    // Documents
+    case DOCUMENTS_VIEW = 'documents.view';
+    case DOCUMENTS_UPLOAD = 'documents.upload';
+    case DOCUMENTS_DELETE = 'documents.delete';
+    case DOCUMENTS_DOWNLOAD = 'documents.download';
+
     // Notifications
     case NOTIFICATIONS_VIEW = 'notifications.view';
 
@@ -141,6 +147,11 @@ enum PermissionEnum: string implements HasLabel
             self::REVENUE_VIEW_TEAM => 'Voir le chiffre d\'affaires équipe',
             self::REVENUE_VIEW_PERSONAL => 'Voir son chiffre d\'affaires',
             self::REVENUE_SET => 'Définir le montant attendu',
+
+            self::DOCUMENTS_VIEW => 'Voir les documents',
+            self::DOCUMENTS_UPLOAD => 'Téléverser des documents',
+            self::DOCUMENTS_DELETE => 'Supprimer des documents',
+            self::DOCUMENTS_DOWNLOAD => 'Télécharger des documents',
 
             self::NOTIFICATIONS_VIEW => 'View notifications',
 
