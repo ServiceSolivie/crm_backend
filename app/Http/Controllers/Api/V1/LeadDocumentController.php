@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\ClientTypeEnum;
-use App\Enums\DocumentTypeEnum;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Document\StoreLeadDocumentRequest;
 use App\Http\Resources\DossierResource;
@@ -38,7 +37,7 @@ class LeadDocumentController extends Controller
 
         $document = $this->documentService->uploadDocument(
             $lead,
-            DocumentTypeEnum::from($request->validated('document_type')),
+            $request->validated('document_type'),
             $request->file('file'),
             $request->user(),
         );

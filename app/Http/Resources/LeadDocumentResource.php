@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\DocumentType;
 use Illuminate\Http\Request;
 
 class LeadDocumentResource extends BaseResource
@@ -13,8 +14,8 @@ class LeadDocumentResource extends BaseResource
     {
         return [
             'id' => $this->id,
-            'document_type' => $this->document_type->value,
-            'document_type_label' => $this->document_type->label(),
+            'document_type' => $this->document_type,
+            'document_type_label' => DocumentType::where('name', $this->document_type)->value('label') ?? $this->document_type,
             'original_filename' => $this->original_filename,
             'mime_type' => $this->mime_type,
             'file_size' => $this->file_size,

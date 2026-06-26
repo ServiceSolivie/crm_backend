@@ -2,7 +2,6 @@
 
 namespace App\Repositories\Eloquent;
 
-use App\Enums\DocumentTypeEnum;
 use App\Models\LeadDocument;
 use App\Repositories\Contracts\LeadDocumentRepositoryInterface;
 use Illuminate\Database\Eloquent\Model;
@@ -14,11 +13,11 @@ class LeadDocumentRepository extends BaseRepository implements LeadDocumentRepos
         return LeadDocument::class;
     }
 
-    public function findByLeadAndType(int $leadId, DocumentTypeEnum $type): ?Model
+    public function findByLeadAndType(int $leadId, string $type): ?Model
     {
         return $this->newQuery()
             ->where('lead_id', $leadId)
-            ->where('document_type', $type->value)
+            ->where('document_type', $type)
             ->first();
     }
 }

@@ -8,6 +8,7 @@ use App\Repositories\Contracts\DashboardRepositoryInterface;
 use App\Repositories\Contracts\LeadImportRepositoryInterface;
 use App\Repositories\Contracts\LeadRepositoryInterface;
 use App\Repositories\Contracts\LeadSourceRepositoryInterface;
+use App\Repositories\Contracts\DocumentTypeRepositoryInterface;
 use App\Repositories\Contracts\LeadDocumentRepositoryInterface;
 use App\Repositories\Contracts\PaymentRepositoryInterface;
 use App\Repositories\Contracts\ReportRepositoryInterface;
@@ -19,6 +20,7 @@ use App\Repositories\Eloquent\DashboardRepository;
 use App\Repositories\Eloquent\LeadImportRepository;
 use App\Repositories\Eloquent\LeadRepository;
 use App\Repositories\Eloquent\LeadSourceRepository;
+use App\Repositories\Eloquent\DocumentTypeRepository;
 use App\Repositories\Eloquent\LeadDocumentRepository;
 use App\Repositories\Eloquent\PaymentRepository;
 use App\Repositories\Eloquent\ReportRepository;
@@ -44,6 +46,7 @@ class RepositoryServiceProvider extends ServiceProvider
         AppointmentReminderRepositoryInterface::class => AppointmentReminderRepository::class,
         LeadImportRepositoryInterface::class => LeadImportRepository::class,
         LeadDocumentRepositoryInterface::class => LeadDocumentRepository::class,
+        DocumentTypeRepositoryInterface::class => DocumentTypeRepository::class,
         PaymentRepositoryInterface::class => PaymentRepository::class,
     ];
 

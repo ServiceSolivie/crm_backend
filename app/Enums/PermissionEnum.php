@@ -87,6 +87,10 @@ enum PermissionEnum: string implements HasLabel
     case DOCUMENTS_DELETE = 'documents.delete';
     case DOCUMENTS_DOWNLOAD = 'documents.download';
 
+    // Document Requirements (admin)
+    case DOCUMENT_REQUIREMENTS_VIEW = 'document_requirements.view';
+    case DOCUMENT_REQUIREMENTS_MANAGE = 'document_requirements.manage';
+
     // Notifications
     case NOTIFICATIONS_VIEW = 'notifications.view';
 
@@ -152,6 +156,9 @@ enum PermissionEnum: string implements HasLabel
             self::DOCUMENTS_UPLOAD => 'Téléverser des documents',
             self::DOCUMENTS_DELETE => 'Supprimer des documents',
             self::DOCUMENTS_DOWNLOAD => 'Télécharger des documents',
+
+            self::DOCUMENT_REQUIREMENTS_VIEW => 'Voir les exigences documentaires',
+            self::DOCUMENT_REQUIREMENTS_MANAGE => 'Gérer les exigences documentaires',
 
             self::NOTIFICATIONS_VIEW => 'View notifications',
 

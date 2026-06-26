@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Document;
 
-use App\Enums\DocumentTypeEnum;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,7 +18,7 @@ class StoreLeadDocumentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'document_type' => ['required', 'string', Rule::in(DocumentTypeEnum::values())],
+            'document_type' => ['required', 'string', Rule::exists('document_types', 'name')],
             'file' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png,webp'],
         ];
     }

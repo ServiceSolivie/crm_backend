@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\DocumentTypeEnum;
 use App\Models\Lead;
 use App\Models\LeadDocument;
 use App\Models\User;
@@ -14,14 +13,17 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LeadDocumentService
 {
-    public function __construct(protected LeadDocumentRepositoryInterface $repository) {}
+    public function __construct(
+        protected LeadDocumentRepositoryInterface $repository,
+        protected DocumentRequirementService $requirementService,
+    ) {}
 
     /**
      * Get the full dossier status for a lead: required docs, uploaded docs, missing docs, completion %.
      */
     public function getDossierStatus(Lead $lead): array
     {
-        $required = DossierRequirementsConfig::getRequiredDocuments(
+        $required = $this->requirementService->getRequiredDocuments(
             $lead->insurance_type,
             $lead->client_type,
         );
@@ -37,14 +39,14 @@ class LeadDocumentService
             ];
         }
 
-        $uploaded = $lead->documents->keyBy(fn (LeadDocument $doc) => $doc->document_type->value);
+        $uploaded = $lead->documents->keyBy(fn (LeadDocument $doc) => $doc->document_type);
 
         $documents = [];
         foreach ($required as $docType) {
-            $doc = $uploaded->get($docType->value);
+            $doc = $uploaded->get($docType['name']);
             $documents[] = [
-                'type' => $docType->value,
-                'type_label' => $docType->label(),
+                'type' => $docType['name'],
+                'type_label' => $docType['label'],
                 'status' => $doc ? 'uploaded' : 'missing',
                 'document' => $doc,
             ];
@@ -63,11 +65,18 @@ class LeadDocumentService
         ];
     }
 
-    public function uploadDocument(Lead $lead, DocumentTypeEnum $type, UploadedFile $file, User $uploader): LeadDocument
+    public function uploadDocument(Lead $lead, string $type, UploadedFile $file, User $uploader): LeadDocument
     {
-        $required = DossierRequirementsConfig::getRequiredDocuments($lead->insurance_type, $lead->client_type);
+        $required = $this->requirementService->getRequiredDocuments($lead->insurance_type, $lead->client_type);
 
-        if ($required === null || ! in_array($type, $required)) {
+        if ($required === null) {
+            throw ValidationException::withMessages([
+                'document_type' => 'Ce type de document n\'est pas requis pour ce lead.',
+            ]);
+        }
+
+        $requiredNames = array_column($required, 'name');
+        if (! in_array($type, $requiredNames)) {
             throw ValidationException::withMessages([
                 'document_type' => 'Ce type de document n\'est pas requis pour ce lead.',
             ]);
@@ -84,7 +93,7 @@ class LeadDocumentService
         /** @var LeadDocument $document */
         $document = $this->repository->create([
             'lead_id' => $lead->id,
-            'document_type' => $type->value,
+            'document_type' => $type,
             'original_filename' => $file->getClientOriginalName(),
             'file_path' => $path,
             'mime_type' => $file->getMimeType(),
