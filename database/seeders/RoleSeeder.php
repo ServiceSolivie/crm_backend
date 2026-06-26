@@ -53,6 +53,11 @@ class RoleSeeder extends Seeder
             PermissionEnum::PAYMENTS_VIEW->value,
             PermissionEnum::PAYMENTS_DELETE->value,
 
+            PermissionEnum::DOCUMENTS_VIEW->value,
+            PermissionEnum::DOCUMENTS_UPLOAD->value,
+            PermissionEnum::DOCUMENTS_DELETE->value,
+            PermissionEnum::DOCUMENTS_DOWNLOAD->value,
+
             PermissionEnum::REVENUE_VIEW_TEAM->value,
             PermissionEnum::REVENUE_VIEW_PERSONAL->value,
             PermissionEnum::REVENUE_SET->value,
@@ -80,6 +85,10 @@ class RoleSeeder extends Seeder
 
             PermissionEnum::PAYMENTS_CREATE->value,
             PermissionEnum::PAYMENTS_VIEW->value,
+
+            PermissionEnum::DOCUMENTS_VIEW->value,
+            PermissionEnum::DOCUMENTS_UPLOAD->value,
+            PermissionEnum::DOCUMENTS_DOWNLOAD->value,
 
             PermissionEnum::REVENUE_VIEW_PERSONAL->value,
             PermissionEnum::REVENUE_SET->value,

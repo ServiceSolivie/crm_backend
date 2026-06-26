@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\ClientTypeEnum;
+use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentStatusEnum;
 use App\Enums\PermissionEnum;
@@ -65,6 +67,13 @@ class LeadService extends BaseService
         $data['reference'] = $this->generateReference();
         $data['created_by'] = $creator->id;
         $data['status'] = $data['status'] ?? LeadStatusEnum::NRP->value;
+
+        if (empty($data['client_type']) && ! empty($data['insurance_type'])) {
+            $insuranceType = InsuranceTypeEnum::tryFrom($data['insurance_type']);
+            if ($insuranceType === InsuranceTypeEnum::AUTO || $insuranceType === InsuranceTypeEnum::MOTO) {
+                $data['client_type'] = ClientTypeEnum::INDIVIDUAL->value;
+            }
+        }
 
         if (! empty($data['assigned_to']) && empty($data['team_id'])) {
             $data['team_id'] = User::find($data['assigned_to'])?->team_id;

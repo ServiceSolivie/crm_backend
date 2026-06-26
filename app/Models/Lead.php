@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ClientTypeEnum;
 use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentStatusEnum;
@@ -29,6 +30,7 @@ class Lead extends Model
         'birth_date',
         'lead_source_id',
         'insurance_type',
+        'client_type',
         'status',
         'assigned_to',
         'team_id',
@@ -45,6 +47,7 @@ class Lead extends Model
         return [
             'birth_date' => 'date',
             'insurance_type' => InsuranceTypeEnum::class,
+            'client_type' => ClientTypeEnum::class,
             'status' => LeadStatusEnum::class,
             'expected_revenue' => 'decimal:2',
             'payment_status' => PaymentStatusEnum::class,
@@ -100,6 +103,11 @@ class Lead extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(LeadDocument::class);
     }
 
     public function getTotalReceivedAttribute(): string

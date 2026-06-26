@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Lead;
 
+use App\Enums\ClientTypeEnum;
 use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use Illuminate\Foundation\Http\FormRequest;
@@ -28,6 +29,7 @@ class StoreLeadRequest extends FormRequest
             'birth_date' => ['nullable', 'date'],
             'lead_source_id' => ['nullable', 'integer', 'exists:lead_sources,id'],
             'insurance_type' => ['required', Rule::in(InsuranceTypeEnum::values())],
+            'client_type' => ['nullable', Rule::in(ClientTypeEnum::values())],
             'status' => ['sometimes', Rule::in(LeadStatusEnum::values())],
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
             'team_id' => ['nullable', 'integer', 'exists:teams,id'],
