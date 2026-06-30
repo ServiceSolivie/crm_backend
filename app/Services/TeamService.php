@@ -38,7 +38,8 @@ class TeamService extends BaseService
             }
 
             $query->where(function (Builder $query) use ($user) {
-                $query->where('manager_id', $user->id);
+                $query->where('manager_id', $user->id)
+                    ->orWhere('leader_id', $user->id);
 
                 if ($user->team_id !== null) {
                     $query->orWhere('id', $user->team_id);

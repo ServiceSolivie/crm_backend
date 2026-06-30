@@ -19,6 +19,7 @@ class UpdateTeamRequest extends FormRequest
         return [
             'name' => ['sometimes', 'string', 'max:255'],
             'manager_id' => ['nullable', 'integer', 'exists:users,id'],
+            'leader_id' => ['nullable', 'integer', 'exists:users,id'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

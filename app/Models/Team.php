@@ -19,6 +19,7 @@ class Team extends Model
     protected $fillable = [
         'name',
         'manager_id',
+        'leader_id',
         'is_active',
     ];
 
@@ -32,6 +33,11 @@ class Team extends Model
     public function manager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    public function leader(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'leader_id');
     }
 
     public function members(): HasMany

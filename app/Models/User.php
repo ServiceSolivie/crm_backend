@@ -68,6 +68,11 @@ class User extends Authenticatable
         return $this->hasMany(Team::class, 'manager_id');
     }
 
+    public function ledTeam(): HasMany
+    {
+        return $this->hasMany(Team::class, 'leader_id');
+    }
+
     public function assignedLeads(): HasMany
     {
         return $this->hasMany(Lead::class, 'assigned_to');

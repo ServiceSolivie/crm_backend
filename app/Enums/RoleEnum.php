@@ -16,6 +16,7 @@ enum RoleEnum: string implements HasLabel
 
     case SUPER_ADMIN = 'super_admin';
     case MANAGER = 'manager';
+    case TEAM_LEADER = 'team_leader';
     case AGENT = 'agent';
 
     public function label(): string
@@ -23,6 +24,7 @@ enum RoleEnum: string implements HasLabel
         return match ($this) {
             self::SUPER_ADMIN => 'Super Admin',
             self::MANAGER => 'Manager',
+            self::TEAM_LEADER => 'Team Leader',
             self::AGENT => 'Agent',
         };
     }

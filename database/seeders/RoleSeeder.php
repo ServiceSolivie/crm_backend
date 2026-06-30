@@ -65,6 +65,46 @@ class RoleSeeder extends Seeder
             PermissionEnum::NOTIFICATIONS_VIEW->value,
         ]);
 
+        $teamLeader = Role::findOrCreate(RoleEnum::TEAM_LEADER->value);
+        $teamLeader->syncPermissions([
+            PermissionEnum::LEADS_VIEW_TEAM->value,
+            PermissionEnum::LEADS_CREATE->value,
+            PermissionEnum::LEADS_UPDATE->value,
+            PermissionEnum::LEADS_ASSIGN->value,
+            PermissionEnum::LEADS_UPDATE_STATUS->value,
+            PermissionEnum::LEADS_EXPORT->value,
+
+            PermissionEnum::LEAD_NOTES_MANAGE->value,
+            PermissionEnum::LEAD_STATUS_HISTORY_VIEW->value,
+
+            PermissionEnum::PIPELINE_VIEW->value,
+            PermissionEnum::PIPELINE_UPDATE_STATUS->value,
+
+            PermissionEnum::APPOINTMENTS_VIEW_TEAM->value,
+            PermissionEnum::APPOINTMENTS_CREATE->value,
+            PermissionEnum::APPOINTMENTS_UPDATE->value,
+            PermissionEnum::APPOINTMENTS_DELETE->value,
+
+            PermissionEnum::DASHBOARD_VIEW_TEAM->value,
+            PermissionEnum::DASHBOARD_VIEW_PERSONAL->value,
+
+            PermissionEnum::REPORTS_VIEW_TEAM->value,
+            PermissionEnum::REPORTS_EXPORT->value,
+
+            PermissionEnum::REVENUE_VIEW_TEAM->value,
+            PermissionEnum::REVENUE_VIEW_PERSONAL->value,
+            PermissionEnum::REVENUE_SET->value,
+
+            PermissionEnum::PAYMENTS_CREATE->value,
+            PermissionEnum::PAYMENTS_VIEW->value,
+
+            PermissionEnum::DOCUMENTS_VIEW->value,
+            PermissionEnum::DOCUMENTS_UPLOAD->value,
+            PermissionEnum::DOCUMENTS_DOWNLOAD->value,
+
+            PermissionEnum::NOTIFICATIONS_VIEW->value,
+        ]);
+
         $agent = Role::findOrCreate(RoleEnum::AGENT->value);
         $agent->syncPermissions([
             PermissionEnum::LEADS_VIEW_ASSIGNED->value,

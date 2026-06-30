@@ -19,6 +19,7 @@ class StoreTeamRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'manager_id' => ['nullable', 'integer', 'exists:users,id'],
+            'leader_id' => ['nullable', 'integer', 'exists:users,id'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

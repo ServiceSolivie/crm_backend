@@ -20,6 +20,11 @@ class TeamResource extends BaseResource
                 'name' => $this->manager->name,
                 'email' => $this->manager->email,
             ] : null),
+            'leader' => $this->whenLoaded('leader', fn () => $this->leader ? [
+                'id' => $this->leader->id,
+                'name' => $this->leader->name,
+                'email' => $this->leader->email,
+            ] : null),
             'members_count' => $this->when(isset($this->members_count), fn () => $this->members_count),
             'members' => $this->whenLoaded('members', fn () => UserResource::collection($this->members)),
             'created_at' => $this->formatDate($this->created_at),
