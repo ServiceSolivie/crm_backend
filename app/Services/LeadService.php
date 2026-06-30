@@ -136,7 +136,7 @@ class LeadService extends BaseService
             'assigned_by' => $assignedBy->id,
         ]);
 
-        return $lead->refresh();
+        return $lead->refresh()->load(['assignedAgent', 'team', 'leadSource']);
     }
 
     /**
