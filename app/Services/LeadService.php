@@ -7,6 +7,7 @@ use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentStatusEnum;
 use App\Enums\PermissionEnum;
+use App\Enums\RoleEnum;
 use App\Filters\LeadFilter;
 use App\Models\Lead;
 use App\Models\LeadNote;
@@ -118,6 +119,12 @@ class LeadService extends BaseService
         $fromUserId = $lead->assigned_to;
         $toUser = User::findOrFail($toUserId);
 
+        if ($assignedBy->hasRole(RoleEnum::TEAM_LEADER->value) && $toUser->team_id !== $assignedBy->team_id) {
+            throw ValidationException::withMessages([
+                'assigned_to' => 'You can only assign leads to agents within your team.',
+            ]);
+        }
+
         $lead->update([
             'assigned_to' => $toUserId,
             'team_id' => $toUser->team_id,
@@ -129,7 +136,7 @@ class LeadService extends BaseService
             'assigned_by' => $assignedBy->id,
         ]);
 
-        return $lead->refresh();
+        return $lead->refresh()->load(['assignedAgent', 'team', 'leadSource']);
     }
 
     /**

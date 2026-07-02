@@ -36,7 +36,7 @@ class TeamController extends Controller
 
         $team = $this->teamService->createTeam($request->validated());
 
-        $team->load('manager');
+        $team->load(['manager', 'leader']);
 
         return $this->created(new TeamResource($team), 'Team created successfully');
     }
@@ -45,7 +45,7 @@ class TeamController extends Controller
     {
         $this->authorize('view', $team);
 
-        $team->load('manager')->loadCount('members');
+        $team->load(['manager', 'leader'])->loadCount('members');
 
         return $this->success(new TeamResource($team));
     }
@@ -56,7 +56,7 @@ class TeamController extends Controller
 
         $team = $this->teamService->updateTeam($team, $request->validated());
 
-        $team->load('manager')->loadCount('members');
+        $team->load(['manager', 'leader'])->loadCount('members');
 
         return $this->success(new TeamResource($team), 'Team updated successfully');
     }

@@ -26,6 +26,11 @@ class DemoUserSeeder extends Seeder
                 'role' => RoleEnum::MANAGER,
             ],
             [
+                'name' => 'Demo Team Leader',
+                'email' => 'teamleader@crm.test',
+                'role' => RoleEnum::TEAM_LEADER,
+            ],
+            [
                 'name' => 'Demo Agent',
                 'email' => 'agent@crm.test',
                 'role' => RoleEnum::AGENT,
