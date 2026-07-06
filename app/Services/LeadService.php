@@ -67,7 +67,7 @@ class LeadService extends BaseService
     {
         $data['reference'] = $this->generateReference();
         $data['created_by'] = $creator->id;
-        $data['status'] = $data['status'] ?? LeadStatusEnum::NRP->value;
+        $data['status'] = $data['status'] ?? LeadStatusEnum::NOUVEAU->value;
 
         if (empty($data['client_type']) && ! empty($data['insurance_type'])) {
             $insuranceType = InsuranceTypeEnum::tryFrom($data['insurance_type']);

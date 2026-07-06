@@ -32,7 +32,7 @@ class TeamLeaderController extends Controller
             ->with('roles')
             ->withCount([
                 'assignedLeads as active_leads_count' => fn ($q) => $q->where('team_id', $teamId)
-                    ->whereNotIn('status', [LeadStatusEnum::PAS_INTERESSEE->value]),
+                    ->whereNotIn('status', [LeadStatusEnum::PAS_INTERESSE->value, LeadStatusEnum::PERDU->value, LeadStatusEnum::MAUVAIS_NUMERO->value, LeadStatusEnum::LEAD_INVALIDE->value]),
                 'assignedLeads as validated_leads_count' => fn ($q) => $q->where('team_id', $teamId)
                     ->where('status', LeadStatusEnum::VALIDE->value),
                 'assignedLeads as total_leads_count' => fn ($q) => $q->where('team_id', $teamId),
@@ -79,9 +79,10 @@ class TeamLeaderController extends Controller
 
         $leads = Lead::where('team_id', $teamId)
             ->whereIn('status', [
-                LeadStatusEnum::NRP->value,
+                LeadStatusEnum::PAS_DE_REPONSE->value,
+                LeadStatusEnum::OCCUPE->value,
                 LeadStatusEnum::RAPPEL->value,
-                LeadStatusEnum::RENDEZ_VOUS_ASSURE->value,
+                LeadStatusEnum::EN_ATTENTE_CLIENT->value,
             ])
             ->with(['assignedAgent:id,name', 'team:id,name'])
             ->get();
@@ -98,18 +99,17 @@ class TeamLeaderController extends Controller
             };
 
             $reason = null;
-            if ($lead->status === LeadStatusEnum::NRP->value && $hoursIdle > 24) {
-                $reason = 'NRP with no activity for ' . round($hoursIdle) . 'h';
-            } elseif ($lead->status === LeadStatusEnum::RAPPEL->value && $hoursIdle > 48) {
-                $reason = 'Follow-up overdue by ' . round($hoursIdle - 48) . 'h';
-            } elseif ($lead->status === LeadStatusEnum::RENDEZ_VOUS_ASSURE->value) {
+            if ($lead->status === LeadStatusEnum::PAS_DE_REPONSE->value && $hoursIdle > 24) {
+                $reason = 'Pas de réponse depuis ' . round($hoursIdle) . 'h';
+            } elseif ($lead->status === LeadStatusEnum::RAPPEL->value) {
                 $hasAppointment = Appointment::where('lead_id', $lead->id)
                     ->where('status', 'PLANIFIE')
                     ->exists();
-                if (! $hasAppointment) {
-                    $reason = 'RDV status but no scheduled appointment';
-                    $urgency = 'warning';
+                if (! $hasAppointment && $hoursIdle > 48) {
+                    $reason = 'Rappel en retard de ' . round($hoursIdle - 48) . 'h';
                 }
+            } elseif ($lead->status === LeadStatusEnum::EN_ATTENTE_CLIENT->value && $hoursIdle > 48) {
+                $reason = 'En attente depuis ' . round($hoursIdle) . 'h';
             }
 
             return [

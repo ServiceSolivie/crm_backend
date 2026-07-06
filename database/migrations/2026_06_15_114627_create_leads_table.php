@@ -24,7 +24,7 @@ return new class extends Migration
             $table->date('birth_date')->nullable();
             $table->foreignId('lead_source_id')->nullable()->constrained('lead_sources')->nullOnDelete();
             $table->enum('insurance_type', InsuranceTypeEnum::values());
-            $table->enum('status', LeadStatusEnum::values())->default(LeadStatusEnum::NRP->value);
+            $table->enum('status', LeadStatusEnum::values())->default(LeadStatusEnum::NOUVEAU->value);
             $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('team_id')->nullable()->constrained('teams')->nullOnDelete();
             $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();

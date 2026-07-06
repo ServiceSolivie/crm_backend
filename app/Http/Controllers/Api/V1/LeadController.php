@@ -27,8 +27,6 @@ class LeadController extends Controller
     public function index(Request $request, LeadFilter $filters): JsonResponse
     {
         $this->authorize('viewAny', Lead::class);
-        Log::info('Listing leads');
-        Log::info('filters ', $request->all());
         $perPage = (int) $request->integer('per_page', 15);
 
         $leads = $this->leadService->paginateForUser($request->user(), $filters, $perPage);
