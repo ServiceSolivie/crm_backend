@@ -9,20 +9,36 @@ enum LeadStatusEnum: string implements HasLabel
 {
     use EnumHelpers;
 
-    case NRP = 'NRP';
-    case VALIDE = 'VALIDE';
+    case NOUVEAU = 'NOUVEAU';
+    case PAS_DE_REPONSE = 'PAS_DE_REPONSE';
+    case OCCUPE = 'OCCUPE';
     case RAPPEL = 'RAPPEL';
-    case RENDEZ_VOUS_ASSURE = 'RENDEZ_VOUS_ASSURE';
-    case PAS_INTERESSEE = 'PAS_INTERESSEE';
+    case INTERESSE = 'INTERESSE';
+    case DEVIS_EN_COURS = 'DEVIS_EN_COURS';
+    case DEVIS_ENVOYE = 'DEVIS_ENVOYE';
+    case EN_ATTENTE_CLIENT = 'EN_ATTENTE_CLIENT';
+    case VALIDE = 'VALIDE';
+    case PERDU = 'PERDU';
+    case PAS_INTERESSE = 'PAS_INTERESSE';
+    case MAUVAIS_NUMERO = 'MAUVAIS_NUMERO';
+    case LEAD_INVALIDE = 'LEAD_INVALIDE';
 
     public function label(): string
     {
         return match ($this) {
-            self::NRP => 'NRP (Ne Répond Pas)',
+            self::NOUVEAU => 'Nouveau',
+            self::PAS_DE_REPONSE => 'Pas de réponse',
+            self::OCCUPE => 'Occupé',
+            self::RAPPEL => 'Rappel',
+            self::INTERESSE => 'Intéressé',
+            self::DEVIS_EN_COURS => 'Devis en cours',
+            self::DEVIS_ENVOYE => 'Devis envoyé',
+            self::EN_ATTENTE_CLIENT => 'En attente du client',
             self::VALIDE => 'Validé',
-            self::RAPPEL => 'Rappel Programmé',
-            self::RENDEZ_VOUS_ASSURE => 'Rendez-vous Confirmé',
-            self::PAS_INTERESSEE => 'Pas Intéressé(e)',
+            self::PERDU => 'Perdu',
+            self::PAS_INTERESSE => 'Pas intéressé',
+            self::MAUVAIS_NUMERO => 'Mauvais numéro',
+            self::LEAD_INVALIDE => 'Lead invalide',
         };
     }
 }
