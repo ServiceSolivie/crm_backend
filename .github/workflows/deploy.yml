@@ -54,7 +54,7 @@ jobs:
           password: ${{ secrets.SSH_PASS }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd ~/public_html
+            cd ~/domains/solvaconseil.fr/public_html/crm_backend
             git pull origin master
             composer install --no-dev --optimize-autoloader
             php artisan migrate --force
