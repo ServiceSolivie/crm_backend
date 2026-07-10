@@ -23,7 +23,6 @@ class AppointmentController extends Controller
     public function index(Request $request, AppointmentFilter $filters): JsonResponse
     {
         $this->authorize('viewAny', Appointment::class);
-	//test test
 
         $perPage = (int) $request->integer('per_page', 15);
 
