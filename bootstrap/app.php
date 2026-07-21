@@ -80,6 +80,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
-        $schedule->command('google:sync-leads')->everyFifteenMinutes()->withoutOverlapping();
+        $schedule->command('google:sync-leads --sheet=Lead')->everyFifteenMinutes()->withoutOverlapping();
+        $schedule->command('google:sync-leads --sheet=Decennale')->everyFifteenMinutes()->withoutOverlapping();
     })
     ->create();
