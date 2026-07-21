@@ -38,9 +38,14 @@ class UserService
             $attributes['password'] = Hash::make($attributes['password']);
         }
 
+        if (isset($attributes['role'])) {
+            $user->syncRoles([$attributes['role']]);
+            unset($attributes['role']);
+        }
+
         $user->update($attributes);
 
-        return $user->refresh();
+        return $user->refresh()->load('roles');
     }
 
     public function deleteUser(User $user): bool
