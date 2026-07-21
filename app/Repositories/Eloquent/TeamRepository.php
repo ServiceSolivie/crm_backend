@@ -24,7 +24,7 @@ class TeamRepository extends BaseRepository implements TeamRepositoryInterface
     public function paginateFiltered(TeamFilter $filters, int $perPage = 15, ?Closure $scope = null): LengthAwarePaginator
     {
         $query = $this->newQuery()
-            ->with('manager')
+            ->with(['manager', 'leader'])
             ->withCount('members');
 
         if ($scope) {

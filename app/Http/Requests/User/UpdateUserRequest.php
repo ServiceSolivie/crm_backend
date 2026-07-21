@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\User;
 
+use App\Enums\RoleEnum;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,6 +26,7 @@ class UpdateUserRequest extends FormRequest
             'password' => ['sometimes', 'string', 'min:8'],
             'phone' => ['nullable', 'string', 'max:30'],
             'team_id' => ['nullable', 'integer', 'exists:teams,id'],
+            'role' => ['sometimes', Rule::in(RoleEnum::values())],
         ];
     }
 }
