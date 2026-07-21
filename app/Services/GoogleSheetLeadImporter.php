@@ -21,6 +21,7 @@ class GoogleSheetLeadImporter
             'postal' => 4,
             'insurance_type' => 5,
             'agent' => 6,
+            'doublon' => 7,
             'date' => 8,
         ],
         'Decennale' => [
@@ -120,6 +121,11 @@ class GoogleSheetLeadImporter
             try {
                 $parsed = $this->parseRow($row, $columns);
 
+                if (strcasecmp(trim($parsed['doublon']), 'DOUBLON') === 0) {
+                    $skipped++;
+                    continue;
+                }
+
                 if (! $parsed['phone'] && ! $parsed['email']) {
                     $skipped++;
                     continue;
@@ -129,11 +135,8 @@ class GoogleSheetLeadImporter
 
                 if ($existing) {
                     $agentId = $this->resolveAgent($parsed['agent']);
-                    if ($agentId && ! $existing->assigned_to) {
-                        $existing->update([
-                            'assigned_to' => $agentId,
-                            'team_id' => User::find($agentId)?->team_id,
-                        ]);
+                    if ($agentId && $agentId !== $existing->assigned_to) {
+                        $this->leadService->assign($existing, $agentId);
                         $imported++;
                     } else {
                         $skipped++;
@@ -224,6 +227,7 @@ class GoogleSheetLeadImporter
             'source' => $get($columns['source'] ?? null),
             'date' => $get($columns['date'] ?? null),
             'address' => $get($columns['address'] ?? null),
+            'doublon' => $get($columns['doublon'] ?? null),
         ];
     }
 

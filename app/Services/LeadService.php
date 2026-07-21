@@ -114,12 +114,12 @@ class LeadService extends BaseService
      * Reassign a lead to another user, recording the change in the
      * assignment history.
      */
-    public function assign(Lead $lead, int $toUserId, User $assignedBy): Lead
+    public function assign(Lead $lead, int $toUserId, ?User $assignedBy = null): Lead
     {
         $fromUserId = $lead->assigned_to;
         $toUser = User::findOrFail($toUserId);
 
-        if ($assignedBy->hasRole(RoleEnum::TEAM_LEADER->value) && $toUser->team_id !== $assignedBy->team_id) {
+        if ($assignedBy && $assignedBy->hasRole(RoleEnum::TEAM_LEADER->value) && $toUser->team_id !== $assignedBy->team_id) {
             throw ValidationException::withMessages([
                 'assigned_to' => 'You can only assign leads to agents within your team.',
             ]);
@@ -133,7 +133,7 @@ class LeadService extends BaseService
         $lead->assignmentHistories()->create([
             'from_user_id' => $fromUserId,
             'to_user_id' => $toUserId,
-            'assigned_by' => $assignedBy->id,
+            'assigned_by' => $assignedBy?->id,
         ]);
 
         return $lead->refresh()->load(['assignedAgent', 'team', 'leadSource']);
