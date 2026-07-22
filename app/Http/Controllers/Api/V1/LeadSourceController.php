@@ -11,6 +11,7 @@ use App\Models\LeadSource;
 use App\Services\LeadSourceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class LeadSourceController extends Controller
 {
@@ -29,6 +30,8 @@ class LeadSourceController extends Controller
 
     public function store(StoreLeadSourceRequest $request): JsonResponse
     {
+        Log::info('Creating lead source');
+        Log::info($request->validated());
         $this->authorize('create', LeadSource::class);
 
         $leadSource = $this->leadSourceService->createLeadSource($request->validated());
