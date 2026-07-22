@@ -26,6 +26,13 @@ class GoogleSheetLeadImporter
         ],
         'Decennale' => [
             'source' => 0,
+            'status' => 1,
+            'client_type_source' => 2,
+            'legal_form' => 3,
+            'sector' => 4,
+            'employee_count' => 5,
+            'company_name' => 6,
+            'annual_revenue' => 7,
             'name' => 8,
             'phone' => 9,
             'email' => 10,
@@ -42,6 +49,19 @@ class GoogleSheetLeadImporter
             'phone' => 7,
             'insurance_type' => 8,
             'agent' => 9,
+            'date' => 11,
+        ],
+        'Detailles' => [
+            'source' => 0,
+            'currently_insured' => 1,
+            'switch_reason' => 2,
+            'switch_timing' => 3,
+            'name' => 4,
+            'phone_alt' => 5,
+            'phone' => 6,
+            'insurance_type' => 8,
+            'agent' => 9,
+            'doublon' => 10,
             'date' => 11,
         ],
     ];
@@ -135,8 +155,16 @@ class GoogleSheetLeadImporter
 
                 if ($existing) {
                     $agentId = $this->resolveAgent($parsed['agent']);
+                    $updates = $this->extraFieldUpdates($parsed);
+
+                    if ($updates) {
+                        $existing->update($updates);
+                    }
+
                     if ($agentId && $agentId !== $existing->assigned_to) {
                         $this->leadService->assign($existing, $agentId);
+                        $imported++;
+                    } elseif ($updates) {
                         $imported++;
                     } else {
                         $skipped++;
@@ -207,7 +235,7 @@ class GoogleSheetLeadImporter
     {
         $get = fn (int|null $col) => $col !== null ? trim($row[$col] ?? '') : '';
 
-        $phone = $get($columns['phone'] ?? null);
+        $phone = $get($columns['phone'] ?? null) ?: $get($columns['phone_alt'] ?? null);
         $phone = preg_replace('/^p:/', '', $phone);
         $phone = trim($phone);
 
@@ -228,6 +256,16 @@ class GoogleSheetLeadImporter
             'date' => $get($columns['date'] ?? null),
             'address' => $get($columns['address'] ?? null),
             'doublon' => $get($columns['doublon'] ?? null),
+            'status' => $get($columns['status'] ?? null),
+            'client_type_source' => $get($columns['client_type_source'] ?? null),
+            'legal_form' => $get($columns['legal_form'] ?? null),
+            'sector' => $get($columns['sector'] ?? null),
+            'employee_count' => $get($columns['employee_count'] ?? null),
+            'company_name' => $get($columns['company_name'] ?? null),
+            'annual_revenue' => $get($columns['annual_revenue'] ?? null),
+            'currently_insured' => $get($columns['currently_insured'] ?? null),
+            'switch_reason' => $get($columns['switch_reason'] ?? null),
+            'switch_timing' => $get($columns['switch_timing'] ?? null),
         ];
     }
 
@@ -248,6 +286,22 @@ class GoogleSheetLeadImporter
         }
 
         return 'AUTRE';
+    }
+
+    /**
+     * A décennale (10-year construction) warranty is a professional-insurance
+     * product by law, so unless the sheet answer clearly says "individual",
+     * assume it's for a company.
+     */
+    protected function mapClientType(string $raw): string
+    {
+        $key = strtolower(trim($raw));
+
+        if (str_contains($key, 'particulier') || str_contains($key, 'individu')) {
+            return 'INDIVIDUAL';
+        }
+
+        return 'PROFESSIONAL';
     }
 
     protected function splitName(string $fullName): array
@@ -339,17 +393,71 @@ class GoogleSheetLeadImporter
     {
         $name = $this->splitName($parsed['name']);
 
-        return [
+        $data = [
             'first_name' => $name['first_name'],
             'last_name' => $name['last_name'],
             'phone' => $parsed['phone'] ?: null,
             'email' => $parsed['email'] ?: null,
             'city' => $parsed['postal'] ?: null,
+            'address' => $parsed['address'] ?: null,
             'insurance_type' => $parsed['insurance_type'],
             'assigned_to' => $this->resolveAgent($parsed['agent']),
             'lead_source_id' => $this->resolveSource($parsed['source']),
-            'comment' => $parsed['address'] ? "Address: {$parsed['address']}" : null,
+            'comment' => $this->buildComment($parsed),
+            'company_status' => $parsed['status'] ?: null,
+            'company_legal_form' => $parsed['legal_form'] ?: null,
+            'company_sector' => $parsed['sector'] ?: null,
+            'company_employee_count' => $parsed['employee_count'] ?: null,
+            'company_name' => $parsed['company_name'] ?: null,
+            'company_annual_revenue' => $parsed['annual_revenue'] ?: null,
         ];
+
+        if ($parsed['insurance_type'] === 'DECENNALE') {
+            $data['client_type'] = $this->mapClientType($parsed['client_type_source']);
+        }
+
+        return $data;
+    }
+
+    /**
+     * When a sheet row matches an already-imported lead, patch in any new
+     * non-empty structured data instead of leaving the lead frozen at
+     * whatever was captured on first import.
+     *
+     * @return array<string, mixed>
+     */
+    protected function extraFieldUpdates(array $parsed): array
+    {
+        $updates = array_filter([
+            'address' => $parsed['address'] ?: null,
+            'company_status' => $parsed['status'] ?: null,
+            'company_legal_form' => $parsed['legal_form'] ?: null,
+            'company_sector' => $parsed['sector'] ?: null,
+            'company_employee_count' => $parsed['employee_count'] ?: null,
+            'company_name' => $parsed['company_name'] ?: null,
+            'company_annual_revenue' => $parsed['annual_revenue'] ?: null,
+        ], fn ($value) => $value !== null);
+
+        if ($parsed['insurance_type'] === 'DECENNALE' && $parsed['client_type_source']) {
+            $updates['client_type'] = $this->mapClientType($parsed['client_type_source']);
+        }
+
+        return $updates;
+    }
+
+    /**
+     * Fields with no dedicated Lead column (the Detailles sheet's qualifying
+     * questions) get folded into the free-text comment instead.
+     */
+    protected function buildComment(array $parsed): ?string
+    {
+        $details = array_filter([
+            $parsed['currently_insured'] ? "Currently insured: {$parsed['currently_insured']}" : null,
+            $parsed['switch_reason'] ? "Reason for switching: {$parsed['switch_reason']}" : null,
+            $parsed['switch_timing'] ? "Desired switch timing: {$parsed['switch_timing']}" : null,
+        ]);
+
+        return $details ? implode(' | ', $details) : null;
     }
 
     protected function parseDate(string $raw): ?Carbon
