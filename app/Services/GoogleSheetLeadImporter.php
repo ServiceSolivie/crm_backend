@@ -302,6 +302,16 @@ class GoogleSheetLeadImporter
         return $user?->id;
     }
 
+    /**
+     * Short abbreviations used in some sheets that should resolve to the
+     * same lead source as their full name (e.g. "fb" and "Facebook" are
+     * the same source, not two separate ones).
+     */
+    protected const SOURCE_ALIASES = [
+        'fb' => 'Facebook',
+        'ig' => 'Instagram',
+    ];
+
     protected function resolveSource(string $sourceName): ?int
     {
         $sourceName = trim($sourceName);
@@ -309,16 +319,18 @@ class GoogleSheetLeadImporter
             return null;
         }
 
-        if (isset($this->sourceCache[$sourceName])) {
-            return $this->sourceCache[$sourceName];
+        $canonicalName = self::SOURCE_ALIASES[Str::lower($sourceName)] ?? $sourceName;
+
+        if (isset($this->sourceCache[$canonicalName])) {
+            return $this->sourceCache[$canonicalName];
         }
 
         $source = LeadSource::firstOrCreate(
-            ['code' => Str::slug($sourceName)],
-            ['name' => ucfirst($sourceName), 'is_active' => true]
+            ['code' => Str::slug($canonicalName)],
+            ['name' => ucfirst($canonicalName), 'is_active' => true]
         );
 
-        $this->sourceCache[$sourceName] = $source->id;
+        $this->sourceCache[$canonicalName] = $source->id;
 
         return $source->id;
     }
