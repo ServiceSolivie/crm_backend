@@ -17,6 +17,9 @@ Route::middleware(['auth:sanctum', 'active'])->prefix('leads')->name('leads.')->
     Route::get('/{lead}/notes', [LeadController::class, 'notes'])->name('notes.index');
     Route::post('/{lead}/notes', [LeadController::class, 'storeNote'])->name('notes.store');
 
+    Route::get('/{lead}/calls', [LeadController::class, 'calls'])->name('calls.index');
+    Route::post('/{lead}/calls', [LeadController::class, 'storeCall'])->name('calls.store');
+
     Route::get('/{lead}/status-history', [LeadController::class, 'statusHistory'])->name('status-history');
     Route::get('/{lead}/assignment-history', [LeadController::class, 'assignmentHistory'])->name('assignment-history');
 

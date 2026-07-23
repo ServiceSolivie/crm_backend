@@ -92,6 +92,11 @@ class Lead extends Model
         return $this->hasMany(LeadNote::class)->latest();
     }
 
+    public function calls(): HasMany
+    {
+        return $this->hasMany(LeadCall::class)->latest();
+    }
+
     public function statusHistories(): HasMany
     {
         return $this->hasMany(LeadStatusHistory::class)->latest();

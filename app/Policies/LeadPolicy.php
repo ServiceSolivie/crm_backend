@@ -53,6 +53,11 @@ class LeadPolicy
         return $user->can(PermissionEnum::LEAD_NOTES_MANAGE->value) && $this->canAccess($user, $lead);
     }
 
+    public function manageCalls(User $user, Lead $lead): bool
+    {
+        return $user->can(PermissionEnum::LEAD_CALLS_MANAGE->value) && $this->canAccess($user, $lead);
+    }
+
     public function viewHistory(User $user, Lead $lead): bool
     {
         return $user->can(PermissionEnum::LEAD_STATUS_HISTORY_VIEW->value) && $this->canAccess($user, $lead);

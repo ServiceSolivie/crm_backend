@@ -10,6 +10,7 @@ use App\Enums\PermissionEnum;
 use App\Enums\RoleEnum;
 use App\Filters\LeadFilter;
 use App\Models\Lead;
+use App\Models\LeadCall;
 use App\Models\LeadNote;
 use App\Models\User;
 use App\Repositories\Contracts\LeadRepositoryInterface;
@@ -192,6 +193,20 @@ class LeadService extends BaseService
     public function notes(Lead $lead, int $perPage = 15): LengthAwarePaginator
     {
         return $lead->notes()->with('user')->paginate($perPage);
+    }
+
+    public function logCall(Lead $lead, User $user, ?string $outcome = null, ?string $note = null): LeadCall
+    {
+        return $lead->calls()->create([
+            'user_id' => $user->id,
+            'outcome' => $outcome,
+            'note' => $note,
+        ]);
+    }
+
+    public function calls(Lead $lead, int $perPage = 15): LengthAwarePaginator
+    {
+        return $lead->calls()->with('user')->paginate($perPage);
     }
 
     public function statusHistory(Lead $lead, int $perPage = 15): LengthAwarePaginator

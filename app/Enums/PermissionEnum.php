@@ -47,6 +47,7 @@ enum PermissionEnum: string implements HasLabel
     // Lead notes & status history
     case LEAD_NOTES_MANAGE = 'lead_notes.manage';
     case LEAD_STATUS_HISTORY_VIEW = 'lead_status_history.view';
+    case LEAD_CALLS_MANAGE = 'lead_calls.manage';
 
     // Pipeline
     case PIPELINE_VIEW = 'pipeline.view';
@@ -124,6 +125,7 @@ enum PermissionEnum: string implements HasLabel
 
             self::LEAD_NOTES_MANAGE => 'Manage lead notes',
             self::LEAD_STATUS_HISTORY_VIEW => 'View lead status history',
+            self::LEAD_CALLS_MANAGE => 'Log lead calls',
 
             self::PIPELINE_VIEW => 'View pipeline',
             self::PIPELINE_UPDATE_STATUS => 'Move leads in pipeline',
