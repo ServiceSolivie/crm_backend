@@ -6,11 +6,13 @@ use App\Enums\LeadStatusEnum;
 use App\Filters\LeadFilter;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Lead\AssignLeadRequest;
+use App\Http\Requests\Lead\StoreLeadCallRequest;
 use App\Http\Requests\Lead\StoreLeadNoteRequest;
 use App\Http\Requests\Lead\StoreLeadRequest;
 use App\Http\Requests\Lead\UpdateLeadRequest;
 use App\Http\Requests\Lead\UpdateLeadStatusRequest;
 use App\Http\Resources\LeadAssignmentHistoryResource;
+use App\Http\Resources\LeadCallResource;
 use App\Http\Resources\LeadNoteResource;
 use App\Http\Resources\LeadResource;
 use App\Http\Resources\LeadStatusHistoryResource;
@@ -47,7 +49,7 @@ class LeadController extends Controller
     {
         $this->authorize('view', $lead);
 
-        $lead->load(['leadSource', 'assignedAgent', 'team', 'creator']);
+        $lead->load(['leadSource', 'assignedAgent', 'team', 'creator'])->loadCount('calls');
 
         return $this->success(new LeadResource($lead));
     }
@@ -114,6 +116,31 @@ class LeadController extends Controller
         $note->load('user');
 
         return $this->created(new LeadNoteResource($note), 'Note added successfully');
+    }
+
+    public function calls(Request $request, Lead $lead): JsonResponse
+    {
+        $this->authorize('manageCalls', $lead);
+
+        $calls = $this->leadService->calls($lead, (int) $request->integer('per_page', 15));
+
+        return $this->success(LeadCallResource::collection($calls));
+    }
+
+    public function storeCall(StoreLeadCallRequest $request, Lead $lead): JsonResponse
+    {
+        $this->authorize('manageCalls', $lead);
+
+        $call = $this->leadService->logCall(
+            $lead,
+            $request->user(),
+            $request->validated('outcome'),
+            $request->validated('note'),
+        );
+
+        $call->load('user');
+
+        return $this->created(new LeadCallResource($call), 'Call logged successfully');
     }
 
     public function statusHistory(Request $request, Lead $lead): JsonResponse

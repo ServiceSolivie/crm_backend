@@ -55,6 +55,7 @@ class LeadResource extends BaseResource
             'payment_status_label' => $this->payment_status?->label(),
             'validated_at' => $this->formatDate($this->validated_at),
             'payments_count' => $this->whenCounted('payments'),
+            'calls_count' => $this->whenCounted('calls'),
             'created_by' => $this->whenLoaded('creator', fn () => [
                 'id' => $this->creator->id,
                 'name' => $this->creator->name,

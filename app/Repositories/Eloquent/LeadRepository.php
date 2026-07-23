@@ -23,7 +23,7 @@ class LeadRepository extends BaseRepository implements LeadRepositoryInterface
             'assignedAgent',
             'team',
             'creator',
-        ]);
+        ])->withCount('calls');
 
         if ($scope) {
             $scope($query);
