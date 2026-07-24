@@ -92,6 +92,11 @@ enum PermissionEnum: string implements HasLabel
     case DOCUMENT_REQUIREMENTS_VIEW = 'document_requirements.view';
     case DOCUMENT_REQUIREMENTS_MANAGE = 'document_requirements.manage';
 
+    // Contracts
+    case CONTRACTS_VIEW = 'contracts.view';
+    case CONTRACTS_GENERATE = 'contracts.generate';
+    case CONTRACTS_DELETE = 'contracts.delete';
+
     // Notifications
     case NOTIFICATIONS_VIEW = 'notifications.view';
 
@@ -161,6 +166,10 @@ enum PermissionEnum: string implements HasLabel
 
             self::DOCUMENT_REQUIREMENTS_VIEW => 'Voir les exigences documentaires',
             self::DOCUMENT_REQUIREMENTS_MANAGE => 'Gérer les exigences documentaires',
+
+            self::CONTRACTS_VIEW => 'Voir les contrats',
+            self::CONTRACTS_GENERATE => 'Générer des contrats',
+            self::CONTRACTS_DELETE => 'Supprimer des contrats',
 
             self::NOTIFICATIONS_VIEW => 'View notifications',
 
