@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\AppointmentStatusEnum;
 use App\Enums\PermissionEnum;
+use App\Enums\ReminderChannelEnum;
 use App\Exceptions\ApiException;
 use App\Filters\AppointmentFilter;
 use App\Models\Appointment;
@@ -26,8 +27,10 @@ class AppointmentService extends BaseService
         AppointmentStatusEnum::NON_VENU->value,
     ];
 
-    public function __construct(protected AppointmentRepositoryInterface $appointments)
-    {
+    public function __construct(
+        protected AppointmentRepositoryInterface $appointments,
+        protected AppointmentReminderService $reminders,
+    ) {
         parent::__construct($appointments);
     }
 
@@ -94,6 +97,11 @@ class AppointmentService extends BaseService
         /** @var Appointment $appointment */
         $appointment = $this->appointments->create($data);
 
+        $this->reminders->createReminder($appointment, [
+            'remind_at' => $appointment->scheduled_at->copy()->subMinutes(30),
+            'channel' => ReminderChannelEnum::IN_APP->value,
+        ]);
+
         return $appointment->refresh();
     }
 
@@ -135,7 +143,13 @@ class AppointmentService extends BaseService
             'status' => AppointmentStatusEnum::REPORTE->value,
         ]);
 
-        return $appointment->refresh();
+        $appointment->refresh();
+
+        $appointment->reminders()
+            ->whereNull('sent_at')
+            ->update(['remind_at' => $appointment->scheduled_at->copy()->subMinutes(30)]);
+
+        return $appointment;
     }
 
     /**
@@ -149,6 +163,10 @@ class AppointmentService extends BaseService
         }
 
         $appointment->update(['status' => $status->value]);
+
+        if (in_array($status, [AppointmentStatusEnum::ANNULE, AppointmentStatusEnum::NON_VENU], true)) {
+            $appointment->reminders()->whereNull('sent_at')->update(['sent_at' => now()]);
+        }
 
         return $appointment->refresh();
     }

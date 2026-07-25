@@ -24,6 +24,13 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withBroadcasting(
+        __DIR__.'/../routes/channels.php',
+        [
+            'prefix' => 'api/v1',
+            'middleware' => ['auth:sanctum', 'active'],
+        ],
+    )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
@@ -83,5 +90,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('google:sync-leads --sheet=Lead')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('google:sync-leads --sheet=Decennale')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('google:sync-leads --sheet=Detailles')->everyFifteenMinutes()->withoutOverlapping();
+        $schedule->command('appointments:send-today-reminders')->dailyAt('07:00');
+        $schedule->command('appointments:send-due-reminders')->everyMinute()->withoutOverlapping();
     })
     ->create();
