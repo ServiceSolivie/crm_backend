@@ -21,8 +21,8 @@ class LeadResource extends BaseResource
             'city' => $this->city,
             'address' => $this->address,
             'birth_date' => $this->birth_date?->toDateString(),
-            'insurance_type' => $this->insurance_type->value,
-            'insurance_type_label' => $this->insurance_type->label(),
+            'insurance_type' => $this->insurance_type?->value,
+            'insurance_type_label' => $this->insurance_type?->label(),
             'client_type' => $this->client_type?->value,
             'client_type_label' => $this->client_type?->label(),
             'company_status' => $this->company_status,
@@ -34,6 +34,7 @@ class LeadResource extends BaseResource
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'comment' => $this->comment,
+            'lead_submitted_at' => $this->formatDate($this->lead_submitted_at),
             'lead_source' => $this->whenLoaded('leadSource', fn () => [
                 'id' => $this->leadSource->id,
                 'name' => $this->leadSource->name,

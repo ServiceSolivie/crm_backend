@@ -18,6 +18,7 @@ class LeadAssignmentHistory extends Model
     protected $fillable = [
         'lead_id',
         'from_user_id',
+        'from_agent_name',
         'to_user_id',
         'assigned_by',
     ];

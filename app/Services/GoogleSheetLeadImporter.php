@@ -7,6 +7,7 @@ use App\Models\GoogleSheetSyncLog;
 use App\Models\Lead;
 use App\Models\LeadSource;
 use App\Models\User;
+use App\Notifications\LeadReceivedNotification;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -141,40 +142,11 @@ class GoogleSheetLeadImporter
             try {
                 $parsed = $this->parseRow($row, $columns);
 
-                if (strcasecmp(trim($parsed['doublon']), 'DOUBLON') === 0) {
+                if ($this->processParsedRow($parsed, $systemUser) === 'imported') {
+                    $imported++;
+                } else {
                     $skipped++;
-                    continue;
                 }
-
-                if (! $parsed['phone'] && ! $parsed['email']) {
-                    $skipped++;
-                    continue;
-                }
-
-                $existing = $this->findExisting($parsed['phone'], $parsed['email']);
-
-                if ($existing) {
-                    $agentId = $this->resolveAgent($parsed['agent']);
-                    $updates = $this->extraFieldUpdates($parsed);
-
-                    if ($updates) {
-                        $existing->update($updates);
-                    }
-
-                    if ($agentId && $agentId !== $existing->assigned_to) {
-                        $this->leadService->assign($existing, $agentId);
-                        $imported++;
-                    } elseif ($updates) {
-                        $imported++;
-                    } else {
-                        $skipped++;
-                    }
-                    continue;
-                }
-
-                $leadData = $this->buildLeadData($parsed);
-                $this->leadService->createLead($leadData, $systemUser);
-                $imported++;
             } catch (\Throwable $e) {
                 $failed++;
                 $errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
@@ -192,6 +164,340 @@ class GoogleSheetLeadImporter
         ]);
 
         return $log->refresh();
+    }
+
+    /**
+     * One-time bulk seed: mirrors a sheet's CURRENT full state into the CRM
+     * as a starting baseline. Unlike import()/processParsedRow(), this
+     * ignores the `doublon` flag entirely, skips any row with no agent in
+     * the sheet, and skips anything already in the CRM (pure additive
+     * seeding — never updates or reassigns an existing lead).
+     *
+     * @return array{total: int, imported: int, skipped: int, failed: int, errors: array}
+     */
+    public function seedFromSheet(string $sheetName): array
+    {
+        $columns = self::SHEET_COLUMNS[$sheetName] ?? null;
+
+        if (! $columns) {
+            throw new \InvalidArgumentException("Unknown sheet: {$sheetName}. Supported: ".implode(', ', array_keys(self::SHEET_COLUMNS)));
+        }
+
+        $rows = $this->sheetsService->getRows($sheetName, 2);
+
+        $systemUser = User::where('email', 'akkaoui@crm.test')->first()
+            ?? User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->first();
+
+        $imported = 0;
+        $skipped = 0;
+        $failed = 0;
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            $rowNumber = 2 + $index;
+
+            try {
+                $parsed = $this->parseRow($row, $columns);
+
+                if (! $parsed['phone'] && ! $parsed['email']) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                if (! $this->resolveAgent($parsed['agent'])) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                if ($this->findExisting($parsed['phone'], $parsed['email'])) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                $this->leadService->createLead($this->buildLeadData($parsed), $systemUser);
+                $imported++;
+            } catch (\Throwable $e) {
+                $failed++;
+                $errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
+            }
+        }
+
+        return [
+            'total' => count($rows),
+            'imported' => $imported,
+            'skipped' => $skipped,
+            'failed' => $failed,
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Canonical lead concept => every field name we've seen a sheet/webhook
+     * use for it so far. The Apps Script's field names are neither fixed
+     * nor consistent between calls (French/English, different scripts per
+     * sheet), so this is deliberately a growing list rather than a fixed
+     * per-sheet column map — add an alias here the first time a new one
+     * shows up in a real payload, no other code changes needed.
+     */
+    protected const WEBHOOK_FIELD_ALIASES = [
+        'name' => ['fullname', 'nom_complet', 'name'],
+        'email' => ['email'],
+        'phone' => ['phone', 'numero_de_telephone'],
+        'postal' => ['postal', 'code_postal'],
+        'address' => ['address'],
+        'source' => ['source'],
+        'agent' => ['agent', 'new_agent'],
+        'insurance_type' => ['insurance_type', "type_d'assurance"],
+    ];
+
+    /**
+     * Pure metadata about the webhook call itself — never persisted:
+     * `doublon`/`action`/`old_agent`/`row` don't gate or record anything
+     * structurally. Dedupe-by-phone/email already decides create vs.
+     * update, and reassignment is driven by comparing the resolved agent
+     * against the lead's own current assigned_to (via LeadService::assign(),
+     * which already correctly derives "who it belonged to before" from our
+     * own data — visible in the History tab). These fields exist purely to
+     * let the sheet trigger that check; they carry no information we don't
+     * already have more reliably ourselves.
+     */
+    protected const WEBHOOK_META_KEYS = ['sheet', 'row', 'action', 'doublon', 'old_agent', 'new_agent', 'agent', 'date'];
+
+    protected const ENVELOPE_NOISE_KEYS = ['spreadsheet_id', 'spreadsheet_name', 'sent_at'];
+
+    /**
+     * Ingest a single webhook call from the Apps Script. Unlike the polling
+     * import() (which reads a fixed column position per sheet), this works
+     * from an arbitrary flat JSON object: known fields (via the alias map
+     * above) are mapped to real Lead columns. Anything left over — a field
+     * without a dedicated column yet (currently_insured, plate, etc.) — is
+     * merged as proper JSON into Lead::comment, so the frontend can render
+     * it as a clean field/value list instead of prose.
+     *
+     * If the contact (phone/email) already exists for the SAME agent (or no
+     * agent resolves), it's a plain update in place. If it already exists
+     * for a DIFFERENT agent, the existing lead is left completely
+     * untouched — a brand-new, separate Lead is created for the new agent
+     * instead, carrying a note about who had it before. This means the same
+     * contact can end up with more than one Lead row, each owned by a
+     * different agent, rather than one row being silently handed around.
+     *
+     * @return array{status: string, lead_id?: int}
+     */
+    public function importFromWebhookPayload(array $payload): array
+    {
+        $get = function (string $concept) use ($payload) {
+            foreach (self::WEBHOOK_FIELD_ALIASES[$concept] ?? [] as $alias) {
+                if (array_key_exists($alias, $payload) && $payload[$alias] !== null && $payload[$alias] !== '') {
+                    return $payload[$alias];
+                }
+            }
+
+            return null;
+        };
+
+        $phone = preg_replace('/^p:/', '', trim((string) ($get('phone') ?? '')));
+        $email = trim((string) ($get('email') ?? ''));
+
+        if (! $phone && ! $email) {
+            return ['status' => 'skipped'];
+        }
+
+        $sheetName = $payload['sheet'] ?? null;
+        $insuranceType = $sheetName === 'Decennale'
+            ? 'DECENNALE'
+            : $this->mapInsuranceType(trim((string) ($get('insurance_type') ?? '')));
+
+        $name = $this->splitName(trim((string) ($get('name') ?? '')));
+        $agentId = $this->resolveAgent(trim((string) ($get('agent') ?? '')));
+        $sourceId = $this->resolveSource(trim((string) ($get('source') ?? '')));
+        $postal = preg_replace('/^z:/', '', trim((string) ($get('postal') ?? '')));
+        $address = trim((string) ($get('address') ?? ''));
+        $rawDate = trim((string) ($payload['date'] ?? ''));
+        $submittedAt = $rawDate ? $this->parseDate($rawDate) : null;
+
+        $extraFields = $this->extractExtraFields($payload);
+
+        $existing = $this->findExisting($phone ?: null, $email ?: null);
+
+        if ($existing && (! $agentId || $agentId === $existing->assigned_to)) {
+            $updates = array_filter([
+                'address' => $address ?: null,
+                'city' => $postal ?: null,
+            ], fn ($value) => $value !== null && $value !== '');
+
+            $mergedExtras = array_merge($this->decodeExtraFields($existing->comment), $extraFields);
+            if ($mergedExtras) {
+                $updates['comment'] = json_encode($mergedExtras, JSON_UNESCAPED_UNICODE);
+            }
+
+            // The submission date is when the lead first entered the sheet —
+            // it shouldn't move just because the lead was later updated.
+            if (! $existing->lead_submitted_at && $submittedAt) {
+                $updates['lead_submitted_at'] = $submittedAt;
+            }
+
+            $existing->update($updates);
+
+            return ['status' => 'updated', 'lead_id' => $existing->id];
+        }
+
+        // Either a brand-new contact, or an existing one now claimed by a
+        // DIFFERENT agent — both create a fresh Lead row. The prior agent's
+        // own lead (if any) is never touched.
+        $systemUser = User::where('email', 'akkaoui@crm.test')->first()
+            ?? User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->first();
+
+        $leadData = [
+            'first_name' => $name['first_name'],
+            'last_name' => $name['last_name'],
+            'phone' => $phone ?: null,
+            'email' => $email ?: null,
+            'city' => $postal ?: null,
+            'address' => $address ?: null,
+            'insurance_type' => $insuranceType,
+            'assigned_to' => $agentId,
+            'lead_source_id' => $sourceId,
+            'comment' => $extraFields ? json_encode($extraFields, JSON_UNESCAPED_UNICODE) : null,
+            'lead_submitted_at' => $submittedAt,
+        ];
+
+        $lead = $this->leadService->createLead($leadData, $systemUser);
+
+        if ($existing && $agentId) {
+            $this->attachPriorAgentNote($lead, $existing, $agentId, $payload);
+        }
+
+        if ($agentId) {
+            $this->notifyAgent($agentId, $lead);
+        }
+
+        return ['status' => 'created', 'lead_id' => $lead->id];
+    }
+
+    /**
+     * Live-notify the agent they've been assigned a lead via the webhook.
+     * Only fires for brand-new leads now — an existing contact claimed by a
+     * different agent creates a new lead for them too, so this still covers
+     * that case; a same-agent update never calls this at all.
+     */
+    protected function notifyAgent(int $agentId, Lead $lead): void
+    {
+        $agent = User::find($agentId);
+        $agent?->notify(new LeadReceivedNotification($lead));
+    }
+
+    /**
+     * Attached to the NEW lead (never the old one) when a different agent
+     * claims a contact that already exists for someone else — a note that
+     * this contact previously belonged to another agent, so anyone looking
+     * at the new lead's History tab can see who else has talked to them.
+     * Prefers our own tracked data (the existing lead's own assigned_to,
+     * most reliable) and only falls back to resolving the sheet's own
+     * `old_agent` claim (or storing it as raw text) when the existing lead
+     * has no agent of its own to report.
+     */
+    protected function attachPriorAgentNote(Lead $newLead, Lead $existing, int $agentId, array $payload): void
+    {
+        $priorAgentId = $existing->assigned_to;
+        $priorAgentName = null;
+
+        if (! $priorAgentId) {
+            $oldAgentRaw = trim((string) ($payload['old_agent'] ?? ''));
+            if ($oldAgentRaw) {
+                $priorAgentId = $this->resolveAgent($oldAgentRaw);
+                $priorAgentName = $priorAgentId ? null : $oldAgentRaw;
+            }
+        }
+
+        if (! $priorAgentId && ! $priorAgentName) {
+            return;
+        }
+
+        $newLead->assignmentHistories()->create([
+            'from_user_id' => $priorAgentId,
+            'from_agent_name' => $priorAgentName,
+            'to_user_id' => $agentId,
+            'assigned_by' => null,
+        ]);
+    }
+
+    /**
+     * Every payload field without a dedicated Lead column yet — i.e. not
+     * one of the known aliases and not pure webhook/envelope metadata.
+     *
+     * @return array<string, mixed>
+     */
+    protected function extractExtraFields(array $payload): array
+    {
+        $consumedKeys = array_merge(
+            self::WEBHOOK_META_KEYS,
+            self::ENVELOPE_NOISE_KEYS,
+            ...array_values(self::WEBHOOK_FIELD_ALIASES),
+        );
+
+        return collect($payload)
+            ->except($consumedKeys)
+            ->filter(fn ($value) => $value !== null && $value !== '')
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function decodeExtraFields(?string $comment): array
+    {
+        if (! $comment) {
+            return [];
+        }
+
+        $decoded = json_decode($comment, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Shared skip/dedupe/assign/create logic for a single already-parsed
+     * row, used by both the polling import() loop and importFromWebhook().
+     *
+     * @return string 'imported'|'skipped'
+     */
+    protected function processParsedRow(array $parsed, ?User $systemUser): string
+    {
+        if (strcasecmp(trim($parsed['doublon'] ?? ''), 'DOUBLON') === 0) {
+            return 'skipped';
+        }
+
+        if (! $parsed['phone'] && ! $parsed['email']) {
+            return 'skipped';
+        }
+
+        $existing = $this->findExisting($parsed['phone'], $parsed['email']);
+
+        if ($existing) {
+            $agentId = $this->resolveAgent($parsed['agent']);
+            $updates = $this->extraFieldUpdates($parsed, $existing);
+
+            if ($updates) {
+                $existing->update($updates);
+            }
+
+            if ($agentId && $agentId !== $existing->assigned_to) {
+                $this->leadService->assign($existing, $agentId);
+
+                return 'imported';
+            }
+
+            return $updates ? 'imported' : 'skipped';
+        }
+
+        $leadData = $this->buildLeadData($parsed);
+        $this->leadService->createLead($leadData, $systemUser);
+
+        return 'imported';
     }
 
     protected function findDateRange(string $sheetName, int $dateCol, string $targetDate): array
@@ -410,6 +716,7 @@ class GoogleSheetLeadImporter
             'company_employee_count' => $parsed['employee_count'] ?: null,
             'company_name' => $parsed['company_name'] ?: null,
             'company_annual_revenue' => $parsed['annual_revenue'] ?: null,
+            'lead_submitted_at' => $parsed['date'] ? $this->parseDate($parsed['date']) : null,
         ];
 
         if ($parsed['insurance_type'] === 'DECENNALE') {
@@ -426,7 +733,7 @@ class GoogleSheetLeadImporter
      *
      * @return array<string, mixed>
      */
-    protected function extraFieldUpdates(array $parsed): array
+    protected function extraFieldUpdates(array $parsed, ?Lead $existing = null): array
     {
         $updates = array_filter([
             'address' => $parsed['address'] ?: null,
@@ -442,6 +749,15 @@ class GoogleSheetLeadImporter
             $updates['client_type'] = $this->mapClientType($parsed['client_type_source']);
         }
 
+        // The submission date is when the lead first entered the sheet — it
+        // shouldn't move just because the lead was later reassigned/updated.
+        if ($existing && ! $existing->lead_submitted_at && $parsed['date']) {
+            $submittedAt = $this->parseDate($parsed['date']);
+            if ($submittedAt) {
+                $updates['lead_submitted_at'] = $submittedAt;
+            }
+        }
+
         return $updates;
     }
 
@@ -452,12 +768,12 @@ class GoogleSheetLeadImporter
     protected function buildComment(array $parsed): ?string
     {
         $details = array_filter([
-            $parsed['currently_insured'] ? "Currently insured: {$parsed['currently_insured']}" : null,
-            $parsed['switch_reason'] ? "Reason for switching: {$parsed['switch_reason']}" : null,
-            $parsed['switch_timing'] ? "Desired switch timing: {$parsed['switch_timing']}" : null,
-        ]);
+            'currently_insured' => $parsed['currently_insured'] ?: null,
+            'switch_reason' => $parsed['switch_reason'] ?: null,
+            'switch_timing' => $parsed['switch_timing'] ?: null,
+        ], fn ($value) => $value !== null);
 
-        return $details ? implode(' | ', $details) : null;
+        return $details ? json_encode($details, JSON_UNESCAPED_UNICODE) : null;
     }
 
     protected function parseDate(string $raw): ?Carbon
