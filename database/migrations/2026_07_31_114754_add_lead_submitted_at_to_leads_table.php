@@ -1,0 +1,31 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::table('leads', function (Blueprint $table) {
+            // When the lead was actually submitted in the Google Sheet —
+            // distinct from `created_at`, which is when our own DB row was
+            // made (i.e. when it was picked up/assigned in the CRM).
+            $table->dateTime('lead_submitted_at')->nullable()->after('comment');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('leads', function (Blueprint $table) {
+            $table->dropColumn('lead_submitted_at');
+        });
+    }
+};

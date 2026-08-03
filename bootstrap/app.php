@@ -3,6 +3,7 @@
 use App\Exceptions\ApiException;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\VerifyWebhookSecret;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -38,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
+            'verify_webhook_secret' => VerifyWebhookSecret::class,
         ]);
         $middleware->api(append: [SetLocale::class]);
     })
@@ -89,9 +91,11 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
-        $schedule->command('google:sync-leads --sheet=Lead')->everyFifteenMinutes()->withoutOverlapping();
-        $schedule->command('google:sync-leads --sheet=Decennale')->everyFifteenMinutes()->withoutOverlapping();
-        $schedule->command('google:sync-leads --sheet=Detailles')->everyFifteenMinutes()->withoutOverlapping();
+        // 15-minute google:sync-leads polling removed — leads now come in
+        // live via the webhook (app/Services/GoogleSheetLeadImporter::
+        // importFromWebhookPayload()), with the super_admin-only "Sync from
+        // Google Sheets" button (LeadImportController::syncFromGoogleSheets())
+        // for a one-time baseline seed instead of continuous polling.
         $schedule->command('appointments:send-today-reminders')->dailyAt('07:00');
         $schedule->command('appointments:send-due-reminders')->everyMinute()->withoutOverlapping();
     })

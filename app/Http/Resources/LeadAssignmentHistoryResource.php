@@ -17,6 +17,7 @@ class LeadAssignmentHistoryResource extends BaseResource
                 'id' => $this->fromUser->id,
                 'name' => $this->fromUser->name,
             ] : null),
+            'from_agent_name' => $this->from_agent_name,
             'to_user' => $this->whenLoaded('toUser', fn () => [
                 'id' => $this->toUser->id,
                 'name' => $this->toUser->name,

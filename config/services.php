@@ -38,6 +38,7 @@ return [
     'google' => [
         'credentials_path' => env('GOOGLE_CREDENTIALS_PATH', storage_path('app/google/fastline-82b0b-627369a623fe.json')),
         'sheet_id' => env('GOOGLE_SHEET_ID'),
+        'webhook_secret' => env('GOOGLE_SHEETS_WEBHOOK_SECRET'),
     ],
 
 ];
