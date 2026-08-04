@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Filters\UserFilter;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\User\AssignUserRoleRequest;
+use App\Http\Requests\User\ResetUserPasswordRequest;
 use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Http\Requests\User\UpdateUserStatusRequest;
@@ -81,5 +82,14 @@ class UserController extends Controller
         $user = $this->userService->setActive($request->user(), $user, (bool) $request->validated('is_active'));
 
         return $this->success(new UserResource($user), 'User status updated successfully');
+    }
+
+    public function resetPassword(ResetUserPasswordRequest $request, User $user): JsonResponse
+    {
+        $this->authorize('resetPassword', $user);
+
+        $user = $this->userService->resetPassword($user, $request->validated('password'));
+
+        return $this->success(new UserResource($user), 'Password reset successfully');
     }
 }

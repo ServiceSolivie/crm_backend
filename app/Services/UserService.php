@@ -34,9 +34,9 @@ class UserService
 
     public function updateUser(User $user, array $attributes): User
     {
-        if (isset($attributes['password'])) {
-            $attributes['password'] = Hash::make($attributes['password']);
-        }
+        // Password changes only ever go through resetPassword() below, which
+        // enforces the super_admin-actor / non-super_admin-target rule.
+        unset($attributes['password']);
 
         if (isset($attributes['role'])) {
             $user->syncRoles([$attributes['role']]);
@@ -58,6 +58,13 @@ class UserService
         $user->syncRoles([$role]);
 
         return $user->load('roles');
+    }
+
+    public function resetPassword(User $target, string $newPassword): User
+    {
+        $target->update(['password' => Hash::make($newPassword)]);
+
+        return $target->refresh();
     }
 
     public function setActive(User $actingUser, User $target, bool $isActive): User

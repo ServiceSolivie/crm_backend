@@ -12,4 +12,5 @@ Route::middleware(['auth:sanctum', 'active'])->prefix('users')->name('users.')->
 
     Route::patch('/{user}/role', [UserController::class, 'assignRole'])->name('assign-role');
     Route::patch('/{user}/status', [UserController::class, 'updateStatus'])->name('update-status');
+    Route::patch('/{user}/password', [UserController::class, 'resetPassword'])->name('reset-password');
 });
