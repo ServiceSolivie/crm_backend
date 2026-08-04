@@ -23,6 +23,17 @@ class LeadDocumentService
      */
     public function getDossierStatus(Lead $lead): array
     {
+        if ($lead->insurance_type === null) {
+            return [
+                'requires_client_type' => false,
+                'completion' => 0,
+                'total_required' => 0,
+                'total_uploaded' => 0,
+                'total_missing' => 0,
+                'documents' => [],
+            ];
+        }
+
         $required = $this->requirementService->getRequiredDocuments(
             $lead->insurance_type,
             $lead->client_type,
@@ -67,6 +78,12 @@ class LeadDocumentService
 
     public function uploadDocument(Lead $lead, string $type, UploadedFile $file, User $uploader): LeadDocument
     {
+        if ($lead->insurance_type === null) {
+            throw ValidationException::withMessages([
+                'document_type' => 'Ce type de document n\'est pas requis pour ce lead.',
+            ]);
+        }
+
         $required = $this->requirementService->getRequiredDocuments($lead->insurance_type, $lead->client_type);
 
         if ($required === null) {
