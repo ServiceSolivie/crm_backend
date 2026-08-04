@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Enums\PermissionEnum;
+use App\Enums\RoleEnum;
 use App\Models\User;
 
 class UserPolicy
@@ -46,6 +47,14 @@ class UserPolicy
     public function updateStatus(User $user, User $model): bool
     {
         return $user->can(PermissionEnum::USERS_UPDATE->value);
+    }
+
+    /**
+     * Only super_admins can reset a password, and never for another super_admin.
+     */
+    public function resetPassword(User $user, User $model): bool
+    {
+        return $user->hasRole(RoleEnum::SUPER_ADMIN->value) && ! $model->hasRole(RoleEnum::SUPER_ADMIN->value);
     }
 
     public function restore(User $user, User $model): bool
