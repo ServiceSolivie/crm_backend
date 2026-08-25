@@ -14,16 +14,16 @@
 return [
 
     'broker' => [
-        'name' => 'SOLIVIE',
+        'name' => 'MOOV ASSUR',
         'legal_form' => "Courtier d'assurance de catégorie B",
-        'rcs' => 'RCS Bordeaux 943 794 305',
+        'rcs' => 'SIREN 107 447 054',
         'address' => '35 Rue de la République',
         'postal_code' => '92800',
         'city' => 'Puteaux',
         'country' => 'France',
-        'phone' => '05 47 74 02 70',
-        'email' => 'gestion@solivie.fr',
-        'website' => 'www.solivie.fr',
+        'phone' => '+33 7 45 88 45 56',
+        'email' => 'Contact@moov-assur.fr',
+        'website' => 'www.moov-assur.fr',
         'orias_article' => "L.520-1, II, 1°, b) du Code des assurances",
     ],
 

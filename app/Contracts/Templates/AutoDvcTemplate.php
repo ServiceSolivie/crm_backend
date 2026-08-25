@@ -7,7 +7,7 @@ use App\Models\User;
 
 /**
  * "Devis et Conseil" (fiche d'informations et de conseils) for auto
- * insurance — the redesigned version of the original SOLIVIE DVC document.
+ * insurance — Devoir de Conseil document for MOOV ASSUR.
  */
 class AutoDvcTemplate extends ContractTemplate
 {

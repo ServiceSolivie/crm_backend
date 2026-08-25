@@ -45,8 +45,8 @@ $garanties = [
 
 $fontDir = str_replace('\\', '/', storage_path('fonts'));
 $heroImg = str_replace('\\', '/', public_path('images/contracts/auto-hero.jpg'));
-$logoImg = str_replace('\\', '/', public_path('images/contracts/solivie-logo.png'));
-$signatureImg = str_replace('\\', '/', public_path('images/contracts/solivie-signature.png'));
+$logoImg = str_replace('\\', '/', public_path('images/contracts/moov-assur-logo.svg'));
+$signatureImg = str_replace('\\', '/', public_path('images/contracts/moov-assur-signature.png'));
 ?><!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -108,7 +108,7 @@ $signatureImg = str_replace('\\', '/', public_path('images/contracts/solivie-sig
     /* ── En-tête de marque ────────────────────────── */
     .brand-row { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
     .brand-left { vertical-align: top; }
-    .brand-logo { height: 30px; display: block; }
+    .brand-logo { height: 40px; display: block; }
     .brand-tagline { font-size: 7.5pt; color: #5b6b7d; margin-top: 5px; }
     .brand-right { vertical-align: top; text-align: right; font-size: 7pt; color: #7a8797; line-height: 1.7; }
 
@@ -300,7 +300,7 @@ $signatureImg = str_replace('\\', '/', public_path('images/contracts/solivie-sig
 <div class="h1"><span class="num">I</span>Le courtier conseil</div>
 <p class="body-text">
     Ce contrat est commercialisé par la société <strong>{{ $broker['name'] }}</strong>, courtier d'assurance de
-    catégorie B, immatriculée au Registre du Commerce et des Sociétés de Bordeaux sous le numéro 943 794 305.
+    catégorie B, immatriculée sous le numéro {{ $broker['rcs'] }}.
     Le siège social de la société est situé {{ $broker['address'] }}, {{ $broker['postal_code'] }} {{ $broker['city'] }}, {{ $broker['country'] }}.
 </p>
 
@@ -339,7 +339,7 @@ $signatureImg = str_replace('\\', '/', public_path('images/contracts/solivie-sig
         </td>
         <td class="gr">
             <div class="field-label">RCS</div>
-            <div class="field-value">Bordeaux 943 794 305</div>
+            <div class="field-value">{{ $broker['rcs'] }}</div>
         </td>
     </tr>
     <tr>
