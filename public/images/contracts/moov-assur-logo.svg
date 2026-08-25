@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="60" viewBox="0 0 280 60">
+  <!-- Speed lines -->
+  <line x1="2" y1="18" x2="16" y2="18" stroke="#C4B5FD" stroke-width="3" stroke-linecap="round"/>
+  <line x1="0" y1="28" x2="18" y2="28" stroke="#C4B5FD" stroke-width="3" stroke-linecap="round"/>
+  <line x1="2" y1="38" x2="16" y2="38" stroke="#C4B5FD" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- M letter -->
+  <polyline points="20,52 32,8 44,35 56,8 68,52" fill="none" stroke="#7C3AED" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Triangle accent -->
+  <polygon points="54,10 58,10 56,14" fill="#C4B5FD"/>
+
+  <!-- moov text -->
+  <text x="85" y="42" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="900" fill="#1A1A2E" letter-spacing="-1">moov</text>
+
+  <!-- ASSUR text -->
+  <text x="85" y="56" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700" fill="#7C3AED" letter-spacing="4">ASSUR</text>
+</svg>
