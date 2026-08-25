@@ -103,6 +103,18 @@ enum PermissionEnum: string implements HasLabel
     // Audit logs
     case AUDIT_LOGS_VIEW = 'audit_logs.view';
 
+    // Vault
+    case VAULT_PARTNERS_VIEW = 'vault.partners.view';
+    case VAULT_PARTNERS_CREATE = 'vault.partners.create';
+    case VAULT_PARTNERS_UPDATE = 'vault.partners.update';
+    case VAULT_PARTNERS_DELETE = 'vault.partners.delete';
+    case VAULT_CREDENTIALS_VIEW = 'vault.credentials.view';
+    case VAULT_CREDENTIALS_CREATE = 'vault.credentials.create';
+    case VAULT_CREDENTIALS_UPDATE = 'vault.credentials.update';
+    case VAULT_CREDENTIALS_DELETE = 'vault.credentials.delete';
+    case VAULT_CREDENTIALS_ASSIGN = 'vault.credentials.assign';
+    case VAULT_AUDIT_LOGS_VIEW = 'vault.audit_logs.view';
+
     public function label(): string
     {
         return match ($this) {
@@ -174,6 +186,17 @@ enum PermissionEnum: string implements HasLabel
             self::NOTIFICATIONS_VIEW => 'View notifications',
 
             self::AUDIT_LOGS_VIEW => 'View audit logs',
+
+            self::VAULT_PARTNERS_VIEW => 'Voir les partenaires vault',
+            self::VAULT_PARTNERS_CREATE => 'Créer des partenaires vault',
+            self::VAULT_PARTNERS_UPDATE => 'Modifier des partenaires vault',
+            self::VAULT_PARTNERS_DELETE => 'Supprimer des partenaires vault',
+            self::VAULT_CREDENTIALS_VIEW => 'Voir les identifiants vault',
+            self::VAULT_CREDENTIALS_CREATE => 'Créer des identifiants vault',
+            self::VAULT_CREDENTIALS_UPDATE => 'Modifier des identifiants vault',
+            self::VAULT_CREDENTIALS_DELETE => 'Supprimer des identifiants vault',
+            self::VAULT_CREDENTIALS_ASSIGN => 'Assigner des identifiants vault',
+            self::VAULT_AUDIT_LOGS_VIEW => 'Voir les logs vault',
         };
     }
 }
