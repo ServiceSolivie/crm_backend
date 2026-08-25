@@ -24,7 +24,7 @@ return [
         'phone' => '+33 7 45 88 45 56',
         'email' => 'Contact@moov-assur.fr',
         'website' => 'www.moov-assur.fr',
-        'orias_article' => "L.520-1, II, 1°, b) du Code des assurances",
+        'orias_article' => 'L.520-1, II, 1°, b) du Code des assurances',
     ],
 
     'authority' => [
