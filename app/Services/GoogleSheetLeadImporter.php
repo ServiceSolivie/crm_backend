@@ -43,15 +43,6 @@ class GoogleSheetLeadImporter
             'insurance_type' => null,
             'fixed_insurance_type' => 'DECENNALE',
         ],
-        'Qualite' => [
-            'source' => 0,
-            'name' => 5,
-            'email' => 6,
-            'phone' => 7,
-            'insurance_type' => 8,
-            'agent' => 9,
-            'date' => 11,
-        ],
         'Detailles' => [
             'source' => 0,
             'currently_insured' => 1,

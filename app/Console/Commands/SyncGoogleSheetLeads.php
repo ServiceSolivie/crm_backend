@@ -9,14 +9,14 @@ use Illuminate\Console\Command;
 class SyncGoogleSheetLeads extends Command
 {
     protected $signature = 'google:sync-leads
-        {--sheet= : Specific sheet tab to sync (Lead, Decennale, Qualite)}
+        {--sheet= : Specific sheet tab to sync (Lead, Decennale, Detailles)}
         {--date= : Only import rows matching this date (Y-m-d format)}
         {--from-row= : Start from a specific row number (overrides cursor)}
         {--fresh : Ignore cursor, re-process from row 2}';
 
     protected $description = 'Import leads from Google Sheets into the CRM';
 
-    protected const SUPPORTED_SHEETS = ['Lead', 'Decennale', 'Qualite'];
+    protected const SUPPORTED_SHEETS = ['Lead', 'Decennale', 'Detailles'];
 
     public function handle(GoogleSheetLeadImporter $importer, GoogleSheetsService $sheetsService): int
     {
