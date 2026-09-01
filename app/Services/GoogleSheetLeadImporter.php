@@ -243,9 +243,9 @@ class GoogleSheetLeadImporter
      * shows up in a real payload, no other code changes needed.
      */
     protected const WEBHOOK_FIELD_ALIASES = [
-        'name' => ['fullname', 'nom_complet', 'name'],
+        'name' => ['fullname', 'nom_complet', 'name', 'full_name'],
         'email' => ['email'],
-        'phone' => ['phone', 'numero_de_telephone'],
+        'phone' => ['phone', 'numero_de_telephone', 'phone_number'],
         'postal' => ['postal', 'code_postal'],
         'address' => ['address'],
         'source' => ['source'],
