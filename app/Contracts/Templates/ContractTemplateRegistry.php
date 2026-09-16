@@ -13,6 +13,7 @@ class ContractTemplateRegistry
      */
     protected const TEMPLATES = [
         AutoDvcTemplate::class,
+        DecennaleDvcTemplate::class,
     ];
 
     /** @var Collection<string, ContractTemplate>|null */

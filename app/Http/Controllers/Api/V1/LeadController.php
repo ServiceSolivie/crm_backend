@@ -20,7 +20,6 @@ use App\Models\Lead;
 use App\Services\LeadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 class LeadController extends Controller
 {
@@ -49,7 +48,7 @@ class LeadController extends Controller
     {
         $this->authorize('view', $lead);
 
-        $lead->load(['leadSource', 'assignedAgent', 'team', 'creator'])->loadCount('calls');
+        $lead->load(['leadSource', 'assignedAgent', 'team', 'creator', 'doublonOf'])->loadCount('calls');
 
         return $this->success(new LeadResource($lead));
     }

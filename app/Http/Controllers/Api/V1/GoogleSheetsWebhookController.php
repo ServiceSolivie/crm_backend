@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\GoogleSheetLeadImporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class GoogleSheetsWebhookController extends Controller
 {
@@ -24,10 +25,14 @@ class GoogleSheetsWebhookController extends Controller
         $payload = $request->all();
 
         if (! is_array($payload) || empty($payload)) {
+            Log::info('google_sheets_webhook: empty or non-JSON payload received');
+
             return $this->success(['status' => 'skipped'], 'Empty or non-JSON payload');
         }
 
         $result = $this->importer->importFromWebhookPayload($payload);
+
+        Log::info('google_sheets_webhook: '.$result['status'], ['payload' => $payload, 'result' => $result]);
 
         return $this->success($result, "Lead {$result['status']}");
     }

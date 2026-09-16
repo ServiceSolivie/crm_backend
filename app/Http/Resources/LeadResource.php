@@ -34,6 +34,11 @@ class LeadResource extends BaseResource
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'comment' => $this->comment,
+            'is_doublon' => $this->is_doublon,
+            'doublon_of' => $this->whenLoaded('doublonOf', fn () => $this->doublonOf ? [
+                'id' => $this->doublonOf->id,
+                'reference' => $this->doublonOf->reference,
+            ] : null),
             'lead_submitted_at' => $this->formatDate($this->lead_submitted_at),
             'lead_source' => $this->whenLoaded('leadSource', fn () => [
                 'id' => $this->leadSource->id,
