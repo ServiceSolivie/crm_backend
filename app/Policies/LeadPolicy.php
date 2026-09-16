@@ -15,7 +15,8 @@ class LeadPolicy
     {
         return $user->can(PermissionEnum::LEADS_VIEW_ALL->value)
             || $user->can(PermissionEnum::LEADS_VIEW_TEAM->value)
-            || $user->can(PermissionEnum::LEADS_VIEW_ASSIGNED->value);
+            || $user->can(PermissionEnum::LEADS_VIEW_ASSIGNED->value)
+            || $user->can(PermissionEnum::LEADS_VIEW_GESTION_ASSIGNED->value);
     }
 
     public function view(User $user, Lead $lead): bool
@@ -79,6 +80,10 @@ class LeadPolicy
         }
 
         if ($user->can(PermissionEnum::LEADS_VIEW_ASSIGNED->value) && $lead->assigned_to === $user->id) {
+            return true;
+        }
+
+        if ($user->can(PermissionEnum::LEADS_VIEW_GESTION_ASSIGNED->value) && $lead->gestion_assigned_to === $user->id) {
             return true;
         }
 

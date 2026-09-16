@@ -43,6 +43,10 @@ class PaymentPolicy
             return true;
         }
 
+        if ($user->can(PermissionEnum::LEADS_VIEW_GESTION_ASSIGNED->value) && $lead->gestion_assigned_to === $user->id) {
+            return true;
+        }
+
         return false;
     }
 }

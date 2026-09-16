@@ -7,7 +7,6 @@ use App\Models\Lead;
 use App\Repositories\Contracts\LeadRepositoryInterface;
 use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Log;
 
 class LeadRepository extends BaseRepository implements LeadRepositoryInterface
 {
@@ -23,6 +22,7 @@ class LeadRepository extends BaseRepository implements LeadRepositoryInterface
             'assignedAgent',
             'team',
             'creator',
+            'doublonOf',
         ])->withCount('calls');
 
         if ($scope) {

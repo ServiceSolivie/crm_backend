@@ -22,6 +22,12 @@ enum LeadStatusEnum: string implements HasLabel
     case PAS_INTERESSE = 'PAS_INTERESSE';
     case MAUVAIS_NUMERO = 'MAUVAIS_NUMERO';
     case LEAD_INVALIDE = 'LEAD_INVALIDE';
+    case GESTION = 'GESTION';
+    case A_CORRIGER = 'A_CORRIGER';
+    case CALL2_OK = 'CALL2_OK';
+    case CALL2_KO = 'CALL2_KO';
+    case PDG_OK = 'PDG_OK';
+    case PDG_KO = 'PDG_KO';
 
     public function label(): string
     {
@@ -39,6 +45,12 @@ enum LeadStatusEnum: string implements HasLabel
             self::PAS_INTERESSE => 'Pas intéressé',
             self::MAUVAIS_NUMERO => 'Mauvais numéro',
             self::LEAD_INVALIDE => 'Lead invalide',
+            self::GESTION => 'Gestion',
+            self::A_CORRIGER => 'À corriger',
+            self::CALL2_OK => 'Call2 OK',
+            self::CALL2_KO => 'Call2 KO',
+            self::PDG_OK => 'PDG OK',
+            self::PDG_KO => 'PDG KO',
         };
     }
 }

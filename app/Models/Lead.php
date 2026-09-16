@@ -40,6 +40,7 @@ class Lead extends Model
         'company_annual_revenue',
         'status',
         'assigned_to',
+        'gestion_assigned_to',
         'team_id',
         'created_by',
         'lead_import_id',
@@ -48,6 +49,9 @@ class Lead extends Model
         'expected_revenue',
         'payment_status',
         'validated_at',
+        'sheet_row_key',
+        'is_doublon',
+        'doublon_of_lead_id',
     ];
 
     protected function casts(): array
@@ -61,6 +65,7 @@ class Lead extends Model
             'expected_revenue' => 'decimal:2',
             'payment_status' => PaymentStatusEnum::class,
             'validated_at' => 'datetime',
+            'is_doublon' => 'boolean',
         ];
     }
 
@@ -72,6 +77,11 @@ class Lead extends Model
     public function assignedAgent(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function gestionAssignedAgent(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'gestion_assigned_to');
     }
 
     public function team(): BelongsTo
@@ -87,6 +97,11 @@ class Lead extends Model
     public function leadImport(): BelongsTo
     {
         return $this->belongsTo(LeadImport::class);
+    }
+
+    public function doublonOf(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class, 'doublon_of_lead_id');
     }
 
     public function notes(): HasMany

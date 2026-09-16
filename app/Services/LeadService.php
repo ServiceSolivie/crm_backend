@@ -13,6 +13,7 @@ use App\Models\Lead;
 use App\Models\LeadCall;
 use App\Models\LeadNote;
 use App\Models\User;
+use App\Notifications\LeadReceivedNotification;
 use App\Repositories\Contracts\LeadRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,9 +22,51 @@ use Illuminate\Validation\ValidationException;
 
 class LeadService extends BaseService
 {
+    /**
+     * How recently another lead for the same contact must have been
+     * assigned for a new assignment to be considered a doublon.
+     */
+    public const DOUBLON_WINDOW_DAYS = 3;
+
     public function __construct(protected LeadRepositoryInterface $leads)
     {
         parent::__construct($leads);
+    }
+
+    /**
+     * Find another lead sharing this contact's phone/email that was
+     * assigned to someone within the doublon window. Used to decide
+     * whether a lead is safe to assign yet, both at webhook ingestion
+     * and at manual CRM dispatch.
+     */
+    public function findRecentDoublon(Lead $lead, ?int $excludeUserId = null): ?Lead
+    {
+        if (! $lead->phone && ! $lead->email) {
+            return null;
+        }
+
+        $others = Lead::where('id', '!=', $lead->id)
+            ->where(function (Builder $q) use ($lead) {
+                if ($lead->phone) {
+                    $q->orWhere('phone', $lead->phone);
+                }
+                if ($lead->email) {
+                    $q->orWhere('email', $lead->email);
+                }
+            })
+            ->whereNotNull('assigned_to')
+            ->when($excludeUserId, fn (Builder $q) => $q->where('assigned_to', '!=', $excludeUserId))
+            ->get();
+
+        foreach ($others as $other) {
+            // Lead::assignmentHistories() is already ->latest(), so first() is the most recent entry.
+            $lastAssignment = $other->assignmentHistories()->first();
+            if ($lastAssignment?->created_at?->greaterThan(now()->subDays(self::DOUBLON_WINDOW_DAYS))) {
+                return $other;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -52,6 +95,12 @@ class LeadService extends BaseService
 
             if ($user->can(PermissionEnum::LEADS_VIEW_ASSIGNED->value)) {
                 $query->where('assigned_to', $user->id);
+
+                return;
+            }
+
+            if ($user->can(PermissionEnum::LEADS_VIEW_GESTION_ASSIGNED->value)) {
+                $query->where('gestion_assigned_to', $user->id);
 
                 return;
             }
@@ -126,6 +175,12 @@ class LeadService extends BaseService
             ]);
         }
 
+        if ($assignedBy && $doublon = $this->findRecentDoublon($lead, $toUserId)) {
+            throw ValidationException::withMessages([
+                'assigned_to' => "Ce contact a déjà été assigné à {$doublon->assignedAgent->name} il y a moins de ".self::DOUBLON_WINDOW_DAYS.' jours.',
+            ]);
+        }
+
         $lead->update([
             'assigned_to' => $toUserId,
             'team_id' => $toUser->team_id,
@@ -136,6 +191,8 @@ class LeadService extends BaseService
             'to_user_id' => $toUserId,
             'assigned_by' => $assignedBy?->id,
         ]);
+
+        $toUser->notify(new LeadReceivedNotification($lead));
 
         return $lead->refresh()->load(['assignedAgent', 'team', 'leadSource']);
     }
@@ -179,7 +236,11 @@ class LeadService extends BaseService
             'comment' => $comment,
         ]);
 
-        return $lead->refresh()->load(['assignedAgent', 'team', 'leadSource', 'creator']);
+        if ($status === LeadStatusEnum::GESTION && $fromStatus !== LeadStatusEnum::GESTION) {
+            app(GestionService::class)->assignToGestion($lead);
+        }
+
+        return $lead->refresh()->load(['assignedAgent', 'gestionAssignedAgent', 'team', 'leadSource', 'creator']);
     }
 
     public function addNote(Lead $lead, User $user, string $note): LeadNote

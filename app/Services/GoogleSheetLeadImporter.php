@@ -7,7 +7,6 @@ use App\Models\GoogleSheetSyncLog;
 use App\Models\Lead;
 use App\Models\LeadSource;
 use App\Models\User;
-use App\Notifications\LeadReceivedNotification;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -90,7 +89,7 @@ class GoogleSheetLeadImporter
         $columns = self::SHEET_COLUMNS[$sheetName] ?? null;
 
         if (! $columns) {
-            throw new \InvalidArgumentException("Unknown sheet: {$sheetName}. Supported: " . implode(', ', array_keys(self::SHEET_COLUMNS)));
+            throw new \InvalidArgumentException("Unknown sheet: {$sheetName}. Supported: ".implode(', ', array_keys(self::SHEET_COLUMNS)));
         }
 
         $log = GoogleSheetSyncLog::create([
@@ -312,9 +311,16 @@ class GoogleSheetLeadImporter
 
         $extraFields = $this->extractExtraFields($payload);
 
+        $sheetRowKey = $this->buildSheetRowKey($payload);
+        $existingByRow = $sheetRowKey ? Lead::where('sheet_row_key', $sheetRowKey)->first() : null;
+
+        if ($existingByRow) {
+            return $this->updateRowMatchedLead($existingByRow, $address, $postal, $extraFields, $submittedAt, $agentId);
+        }
+
         $existing = $this->findExisting($phone ?: null, $email ?: null);
 
-        if ($existing && (! $agentId || $agentId === $existing->assigned_to)) {
+        if ($existing && (! $agentId || $agentId === $existing->assigned_to) && ! $sheetRowKey) {
             $updates = array_filter([
                 'address' => $address ?: null,
                 'city' => $postal ?: null,
@@ -350,35 +356,92 @@ class GoogleSheetLeadImporter
             'city' => $postal ?: null,
             'address' => $address ?: null,
             'insurance_type' => $insuranceType,
-            'assigned_to' => $agentId,
             'lead_source_id' => $sourceId,
             'comment' => $extraFields ? json_encode($extraFields, JSON_UNESCAPED_UNICODE) : null,
             'lead_submitted_at' => $submittedAt,
+            'sheet_row_key' => $sheetRowKey,
         ];
 
         $lead = $this->leadService->createLead($leadData, $systemUser);
 
-        if ($existing && $agentId) {
-            $this->attachPriorAgentNote($lead, $existing, $agentId, $payload);
+        // A sibling counts as a doublon either because it was recently handed
+        // to an agent (findRecentDoublon), or because it's simply still
+        // sitting unassigned — same contact, two open entries, nobody's
+        // claimed either yet.
+        $doublon = null;
+        if ($existing) {
+            $doublon = $this->leadService->findRecentDoublon($lead)
+                ?? (is_null($existing->assigned_to) ? $existing : null);
         }
 
-        if ($agentId) {
-            $this->notifyAgent($agentId, $lead);
+        if ($doublon) {
+            // Flag it and leave it unassigned, even if the payload already
+            // carried an agent.
+            $lead->update(['is_doublon' => true, 'doublon_of_lead_id' => $doublon->id]);
+        } else {
+            if ($existing && $agentId) {
+                $this->attachPriorAgentNote($lead, $existing, $agentId, $payload);
+            }
+
+            if ($agentId) {
+                $this->leadService->assign($lead, $agentId);
+            }
         }
 
         return ['status' => 'created', 'lead_id' => $lead->id];
     }
 
     /**
-     * Live-notify the agent they've been assigned a lead via the webhook.
-     * Only fires for brand-new leads now — an existing contact claimed by a
-     * different agent creates a new lead for them too, so this still covers
-     * that case; a same-agent update never calls this at all.
+     * Build the stable "sheet:row" key that identifies a single spreadsheet
+     * row across repeated webhook calls, so a later call (e.g. filling in
+     * the agent) can be matched back to the exact lead it created — instead
+     * of relying on phone/email, which multiple leads can legitimately share.
      */
-    protected function notifyAgent(int $agentId, Lead $lead): void
+    protected function buildSheetRowKey(array $payload): ?string
     {
-        $agent = User::find($agentId);
-        $agent?->notify(new LeadReceivedNotification($lead));
+        $sheet = $payload['sheet'] ?? null;
+        $row = $payload['row'] ?? null;
+
+        return ($sheet && $row) ? "{$sheet}:{$row}" : null;
+    }
+
+    /**
+     * A repeat webhook call about a row we've already created a lead for —
+     * matched unambiguously by sheet_row_key, never by phone/email. Merges
+     * in any new field data, and fills in the agent (with the same doublon
+     * check used at ingestion) if the row didn't have one yet.
+     *
+     * @return array{status: string, lead_id: int}
+     */
+    protected function updateRowMatchedLead(Lead $lead, string $address, string $postal, array $extraFields, ?Carbon $submittedAt, ?int $agentId): array
+    {
+        $updates = array_filter([
+            'address' => $address ?: null,
+            'city' => $postal ?: null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $mergedExtras = array_merge($this->decodeExtraFields($lead->comment), $extraFields);
+        if ($mergedExtras) {
+            $updates['comment'] = json_encode($mergedExtras, JSON_UNESCAPED_UNICODE);
+        }
+
+        if (! $lead->lead_submitted_at && $submittedAt) {
+            $updates['lead_submitted_at'] = $submittedAt;
+        }
+
+        if ($updates) {
+            $lead->update($updates);
+        }
+
+        if ($agentId && is_null($lead->assigned_to)) {
+            if ($doublon = $this->leadService->findRecentDoublon($lead)) {
+                $lead->update(['is_doublon' => true, 'doublon_of_lead_id' => $doublon->id]);
+            } else {
+                $this->leadService->assign($lead, $agentId);
+            }
+        }
+
+        return ['status' => 'updated', 'lead_id' => $lead->id];
     }
 
     /**
@@ -530,7 +593,7 @@ class GoogleSheetLeadImporter
 
     protected function parseRow(array $row, array $columns): array
     {
-        $get = fn (int|null $col) => $col !== null ? trim($row[$col] ?? '') : '';
+        $get = fn (?int $col) => $col !== null ? trim($row[$col] ?? '') : '';
 
         $phone = $get($columns['phone'] ?? null) ?: $get($columns['phone_alt'] ?? null);
         $phone = preg_replace('/^p:/', '', $phone);

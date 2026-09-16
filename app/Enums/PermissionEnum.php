@@ -115,6 +115,11 @@ enum PermissionEnum: string implements HasLabel
     case VAULT_CREDENTIALS_ASSIGN = 'vault.credentials.assign';
     case VAULT_AUDIT_LOGS_VIEW = 'vault.audit_logs.view';
 
+    // Gestion
+    case LEADS_VIEW_GESTION_ASSIGNED = 'leads.view_gestion_assigned';
+    case GESTION_REVIEW = 'gestion.review';
+    case GESTION_FLAG_DOCUMENTS = 'gestion.flag_documents';
+
     public function label(): string
     {
         return match ($this) {
@@ -197,6 +202,10 @@ enum PermissionEnum: string implements HasLabel
             self::VAULT_CREDENTIALS_DELETE => 'Supprimer des identifiants vault',
             self::VAULT_CREDENTIALS_ASSIGN => 'Assigner des identifiants vault',
             self::VAULT_AUDIT_LOGS_VIEW => 'Voir les logs vault',
+
+            self::LEADS_VIEW_GESTION_ASSIGNED => 'Voir les leads assignés en gestion',
+            self::GESTION_REVIEW => 'Effectuer la revue gestion (Call2, PDG)',
+            self::GESTION_FLAG_DOCUMENTS => 'Signaler des documents manquants ou incorrects',
         };
     }
 }
