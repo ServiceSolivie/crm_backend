@@ -17,6 +17,8 @@ enum DocumentTypeEnum: string implements HasLabel
     case EXTRAIT_KBIS = 'EXTRAIT_KBIS';
     case NUMERO_SIRET = 'NUMERO_SIRET';
     case CONTRAT_CHANTIER = 'CONTRAT_CHANTIER';
+    // The DVC signed by the client; uploading it marks the lead's DVC as signed
+    case DVC = 'DVC';
 
     public function label(): string
     {
@@ -29,6 +31,7 @@ enum DocumentTypeEnum: string implements HasLabel
             self::EXTRAIT_KBIS => 'Extrait Kbis',
             self::NUMERO_SIRET => 'Numéro SIRET',
             self::CONTRAT_CHANTIER => 'Contrat Chantier',
+            self::DVC => 'DVC signé',
         };
     }
 }

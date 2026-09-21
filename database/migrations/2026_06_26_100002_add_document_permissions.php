@@ -22,13 +22,13 @@ return new class extends Migration
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $superAdmin = Role::findByName('super_admin');
+        $superAdmin = Role::findOrCreate('super_admin', 'web');
         $superAdmin->givePermissionTo($permissions);
 
-        $manager = Role::findByName('manager');
+        $manager = Role::findOrCreate('manager', 'web');
         $manager->givePermissionTo($permissions);
 
-        $agent = Role::findByName('agent');
+        $agent = Role::findOrCreate('agent', 'web');
         $agent->givePermissionTo([
             'documents.view',
             'documents.upload',

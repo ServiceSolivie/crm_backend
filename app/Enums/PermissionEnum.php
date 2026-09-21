@@ -41,6 +41,8 @@ enum PermissionEnum: string implements HasLabel
     case LEADS_DELETE = 'leads.delete';
     case LEADS_ASSIGN = 'leads.assign';
     case LEADS_UPDATE_STATUS = 'leads.update_status';
+    // Back-office statuses (Validé, Call2, PDG, À corriger) — gestion and managers, not agents
+    case LEADS_SET_REVIEW_STATUS = 'leads.set_review_status';
     case LEADS_IMPORT = 'leads.import';
     case LEADS_EXPORT = 'leads.export';
 
@@ -142,6 +144,7 @@ enum PermissionEnum: string implements HasLabel
             self::LEADS_DELETE => 'Delete leads',
             self::LEADS_ASSIGN => 'Assign leads',
             self::LEADS_UPDATE_STATUS => 'Update lead status',
+            self::LEADS_SET_REVIEW_STATUS => 'Appliquer les statuts de gestion (Validé, Call2, PDG, À corriger)',
             self::LEADS_IMPORT => 'Import leads',
             self::LEADS_EXPORT => 'Export leads',
 

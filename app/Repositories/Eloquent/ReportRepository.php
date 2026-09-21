@@ -4,8 +4,12 @@ namespace App\Repositories\Eloquent;
 
 use App\Enums\AppointmentStatusEnum;
 use App\Enums\LeadStatusEnum;
+use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PaymentStatusEnum;
 use App\Enums\RoleEnum;
+use App\Filters\AppointmentFilter;
+use App\Filters\LeadFilter;
+use App\Models\Appointment;
 use App\Models\Lead;
 use App\Models\Team;
 use App\Models\User;
@@ -16,7 +20,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ReportRepository implements ReportRepositoryInterface
 {
-    public function paginateTeamReport(?Closure $scope, ?string $from, ?string $to, int $perPage): LengthAwarePaginator
+    public function paginateTeamReport(?Closure $scope, ?int $teamId, ?string $from, ?string $to, int $perPage): LengthAwarePaginator
     {
         $query = Team::query()
             ->with('manager')
@@ -34,7 +38,18 @@ class ReportRepository implements ReportRepositoryInterface
             ->withCount(['appointments as completed_appointments' => function (Builder $query) use ($from, $to) {
                 $query->where('appointments.status', AppointmentStatusEnum::REALISE->value);
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
-            }]);
+            }])
+            ->withCount(['calls as total_calls' => function (Builder $query) use ($from, $to) {
+                $this->applyDateRange($query, 'lead_calls.created_at', $from, $to);
+            }])
+            ->withSum(['payments as revenue_received' => function (Builder $query) use ($from, $to) {
+                $query->where('payments.status', PaymentRecordStatusEnum::REUSSI->value);
+                $this->applyDateRange($query, 'payments.payment_date', $from, $to);
+            }], 'amount');
+
+        if ($teamId) {
+            $query->where('teams.id', $teamId);
+        }
 
         if ($scope) {
             $scope($query);
@@ -61,7 +76,14 @@ class ReportRepository implements ReportRepositoryInterface
             ->withCount(['appointments as completed_appointments' => function (Builder $query) use ($from, $to) {
                 $query->where('status', AppointmentStatusEnum::REALISE->value);
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
-            }]);
+            }])
+            ->withCount(['calls as total_calls' => function (Builder $query) use ($from, $to) {
+                $this->applyDateRange($query, 'created_at', $from, $to);
+            }])
+            ->withSum(['assignedLeadPayments as revenue_received' => function (Builder $query) use ($from, $to) {
+                $query->where('payments.status', PaymentRecordStatusEnum::REUSSI->value);
+                $this->applyDateRange($query, 'payments.payment_date', $from, $to);
+            }], 'amount');
 
         if ($teamId) {
             $query->where('team_id', $teamId);
@@ -74,7 +96,7 @@ class ReportRepository implements ReportRepositoryInterface
         return $query->paginate($perPage);
     }
 
-    public function paginateConversionReport(string $groupBy, ?Closure $scope, ?string $from, ?string $to, int $perPage): LengthAwarePaginator
+    public function paginateConversionReport(string $groupBy, ?Closure $scope, ?int $teamId, ?string $from, ?string $to, int $perPage): LengthAwarePaginator
     {
         $query = Lead::query()->select([]);
 
@@ -104,6 +126,10 @@ class ReportRepository implements ReportRepositoryInterface
 
         $this->applyDateRange($query, 'leads.created_at', $from, $to);
 
+        if ($teamId) {
+            $query->where('leads.team_id', $teamId);
+        }
+
         if ($scope) {
             $scope($query);
         }
@@ -115,7 +141,7 @@ class ReportRepository implements ReportRepositoryInterface
     {
         $query = $this->revenueBaseQuery($scope, $paymentStatus, $teamId, $agentId, $from, $to)
             ->with(['assignedAgent:id,name', 'team:id,name'])
-            ->withSum('payments', 'amount')
+            ->withSum(['payments' => fn (Builder $query) => $query->where('payments.status', PaymentRecordStatusEnum::REUSSI->value)], 'amount')
             ->withCount('payments')
             ->orderByDesc('validated_at');
 
@@ -135,7 +161,7 @@ class ReportRepository implements ReportRepositoryInterface
             ->pluck('aggregate', 'payment_status');
 
         $leadIds = (clone $query)->select('id');
-        $totalReceived = \App\Models\Payment::whereIn('lead_id', $leadIds)->sum('amount');
+        $totalReceived = \App\Models\Payment::received()->whereIn('lead_id', $leadIds)->sum('amount');
 
         return [
             'total_expected' => round((float) $totalExpected, 2),
@@ -145,6 +171,71 @@ class ReportRepository implements ReportRepositoryInterface
             'fully_paid' => (int) ($byStatus[PaymentStatusEnum::PAYE->value] ?? 0),
             'partially_paid' => (int) ($byStatus[PaymentStatusEnum::PARTIELLEMENT_PAYE->value] ?? 0),
             'unpaid' => (int) ($byStatus[PaymentStatusEnum::NON_PAYE->value] ?? 0),
+        ];
+    }
+
+    public function leadSummary(?Closure $scope, LeadFilter $filters): array
+    {
+        $query = Lead::query();
+        if ($scope) {
+            $scope($query);
+        }
+        $query->filter($filters);
+
+        $byStatus = (clone $query)->reorder()
+            ->selectRaw('status, count(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status')
+            ->map(fn ($n) => (int) $n);
+
+        $byStage = [];
+        foreach (LeadStatusEnum::cases() as $status) {
+            $byStage[$status->stage()] = ($byStage[$status->stage()] ?? 0) + ($byStatus[$status->value] ?? 0);
+        }
+
+        $total = (int) $byStatus->sum();
+        $validated = (int) ($byStatus[LeadStatusEnum::VALIDE->value] ?? 0);
+
+        return [
+            'total' => $total,
+            'validated' => $validated,
+            'conversion_rate' => $total > 0 ? round($validated / $total * 100, 2) : 0.0,
+            'unassigned' => (clone $query)->reorder()->whereNull('assigned_to')->count(),
+            'by_status' => $byStatus,
+            'by_stage' => $byStage,
+        ];
+    }
+
+    public function appointmentSummary(?Closure $scope, AppointmentFilter $filters): array
+    {
+        $query = Appointment::query();
+        if ($scope) {
+            $scope($query);
+        }
+        $query->filter($filters);
+
+        $byStatus = (clone $query)->reorder()
+            ->selectRaw('status, count(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status')
+            ->map(fn ($n) => (int) $n);
+
+        $total = (int) $byStatus->sum();
+        $done = (int) ($byStatus[AppointmentStatusEnum::REALISE->value] ?? 0);
+
+        return [
+            'total' => $total,
+            'planned' => (int) ($byStatus[AppointmentStatusEnum::PLANIFIE->value] ?? 0) + (int) ($byStatus[AppointmentStatusEnum::CONFIRME->value] ?? 0),
+            'completed' => $done,
+            'cancelled' => (int) ($byStatus[AppointmentStatusEnum::ANNULE->value] ?? 0),
+            'no_show' => (int) ($byStatus[AppointmentStatusEnum::NON_VENU->value] ?? 0),
+            'rescheduled' => (int) ($byStatus[AppointmentStatusEnum::REPORTE->value] ?? 0),
+            'completion_rate' => $total > 0 ? round($done / $total * 100, 2) : 0.0,
+            'overdue' => (clone $query)->reorder()
+                ->whereIn('status', AppointmentStatusEnum::openValues())
+                ->where('scheduled_at', '<', now())
+                ->count(),
+            'by_status' => $byStatus,
         ];
     }
 

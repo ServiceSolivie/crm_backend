@@ -29,6 +29,59 @@ enum LeadStatusEnum: string implements HasLabel
     case PDG_OK = 'PDG_OK';
     case PDG_KO = 'PDG_KO';
 
+    /**
+     * Statuses decided by the back office (gestion). Only users holding
+     * leads.set_review_status may move a lead into one of them; agents hand
+     * a lead over by setting GESTION instead.
+     *
+     * @return array<int, self>
+     */
+    public static function reviewStatuses(): array
+    {
+        return [
+            self::VALIDE,
+            self::CALL2_OK,
+            self::CALL2_KO,
+            self::PDG_OK,
+            self::PDG_KO,
+            self::A_CORRIGER,
+        ];
+    }
+
+    public function isReviewStatus(): bool
+    {
+        return in_array($this, self::reviewStatuses(), true);
+    }
+
+    /**
+     * Pipeline stage the status belongs to. Mirrors LEAD_STATUS in the
+     * frontend's utils/enums.js — keep both in sync.
+     */
+    public function stage(): string
+    {
+        return match ($this) {
+            self::NOUVEAU => 'new',
+            self::PAS_DE_REPONSE, self::OCCUPE => 'contact',
+            self::RAPPEL, self::EN_ATTENTE_CLIENT, self::A_CORRIGER, self::CALL2_KO, self::PDG_KO => 'follow_up',
+            self::INTERESSE, self::DEVIS_EN_COURS, self::DEVIS_ENVOYE => 'quote',
+            self::VALIDE, self::GESTION, self::CALL2_OK, self::PDG_OK => 'won',
+            self::PERDU, self::PAS_INTERESSE, self::MAUVAIS_NUMERO, self::LEAD_INVALIDE => 'lost',
+        };
+    }
+
+    /**
+     * Status values in the given pipeline stage.
+     *
+     * @return array<int, string>
+     */
+    public static function valuesForStage(string $stage): array
+    {
+        return array_values(array_map(
+            fn (self $s) => $s->value,
+            array_filter(self::cases(), fn (self $s) => $s->stage() === $stage),
+        ));
+    }
+
     public function label(): string
     {
         return match ($this) {

@@ -2,7 +2,7 @@
 
 namespace App\Policies;
 
-use App\Enums\LeadStatusEnum;
+use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PermissionEnum;
 use App\Models\Lead;
 use App\Models\Payment;
@@ -15,12 +15,27 @@ class PaymentPolicy
         return $user->can(PermissionEnum::PAYMENTS_VIEW->value) && $this->canAccessLead($user, $lead);
     }
 
+    /**
+     * Payments no longer wait for Validé: they can be recorded before or
+     * after the DVC signature (PaymentService refuses lost leads).
+     */
     public function create(User $user, Lead $lead): bool
     {
         return $user->can(PermissionEnum::PAYMENTS_CREATE->value)
-            && $lead->status === LeadStatusEnum::VALIDE
-            && $lead->expected_revenue !== null
             && $this->canAccessLead($user, $lead);
+    }
+
+    /**
+     * Mark a payment received / failed / cancelled; a refund also needs
+     * the right to delete payments (managers, admins).
+     */
+    public function updateStatus(User $user, Payment $payment, PaymentRecordStatusEnum $to): bool
+    {
+        if (! $user->can(PermissionEnum::PAYMENTS_CREATE->value) || ! $this->canAccessLead($user, $payment->lead)) {
+            return false;
+        }
+
+        return $to !== PaymentRecordStatusEnum::REMBOURSE || $user->can(PermissionEnum::PAYMENTS_DELETE->value);
     }
 
     public function delete(User $user, Payment $payment): bool

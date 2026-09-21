@@ -17,6 +17,7 @@ class TeamReportRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'team_id' => ['nullable', 'integer', 'exists:teams,id'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],

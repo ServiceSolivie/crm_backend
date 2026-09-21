@@ -2,57 +2,61 @@
 
 namespace App\Services;
 
-use App\Enums\RoleEnum;
 use App\Exceptions\ApiException;
 use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
     public function __construct(protected UserRepositoryInterface $users) {}
 
-    /**
-     * Register a new user and issue an API token.
-     *
-     * New self-registered accounts are assigned the Agent role by default;
-     * role/team assignment is managed by Super Admins via the Users module.
-     *
-     * @return array{user: User, token: string}
-     */
-    public function register(array $data): array
-    {
-        /** @var User $user */
-        $user = $this->users->create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'is_active' => true,
-        ]);
+    /** Failed attempts allowed per e-mail + IP before the login is locked */
+    public const MAX_LOGIN_ATTEMPTS = 4;
 
-        $user->assignRole(RoleEnum::AGENT->value);
-
-        $token = $user->createToken($data['device_name'] ?? 'api')->plainTextToken;
-
-        return ['user' => $user, 'token' => $token];
-    }
+    /** How long the login stays locked after too many failures (seconds) */
+    public const LOGIN_LOCK_SECONDS = 60;
 
     /**
      * Attempt to authenticate a user and issue an API token.
+     *
+     * Brute-force protection: after MAX_LOGIN_ATTEMPTS wrong passwords for
+     * the same e-mail from the same IP, further attempts are refused (429)
+     * for LOGIN_LOCK_SECONDS. A successful login resets the counter.
      *
      * @return array{user: User, token: string}
      *
      * @throws ApiException
      */
-    public function login(array $credentials): array
+    public function login(array $credentials, string $ip = ''): array
     {
+        $key = 'login:'.Str::lower(trim($credentials['email'])).'|'.$ip;
+
+        if (RateLimiter::tooManyAttempts($key, self::MAX_LOGIN_ATTEMPTS)) {
+            $seconds = RateLimiter::availableIn($key);
+
+            throw new ApiException(
+                "Trop de tentatives de connexion. Réessayez dans {$seconds} secondes.",
+                429,
+                ['retry_after' => $seconds],
+            );
+        }
+
         /** @var User|null $user */
         $user = $this->users->findBy('email', $credentials['email']);
 
         if (! $user || ! Hash::check($credentials['password'], $user->password)) {
-            throw new ApiException('These credentials do not match our records.', 401);
+            RateLimiter::hit($key, self::LOGIN_LOCK_SECONDS);
+
+            throw new ApiException('These credentials do not match our records.', 401, [
+                'attempts_left' => max(0, self::MAX_LOGIN_ATTEMPTS - RateLimiter::attempts($key)),
+            ]);
         }
+
+        RateLimiter::clear($key);
 
         if (! $user->is_active) {
             throw new ApiException('This account has been deactivated.', 403);

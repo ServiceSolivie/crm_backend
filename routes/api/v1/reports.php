@@ -5,7 +5,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'active'])->prefix('reports')->name('reports.')->group(function () {
     Route::get('/leads', [ReportController::class, 'leads'])->name('leads');
+    Route::get('/leads/summary', [ReportController::class, 'leadsSummary'])->name('leads.summary');
     Route::get('/appointments', [ReportController::class, 'appointments'])->name('appointments');
+    Route::get('/appointments/summary', [ReportController::class, 'appointmentsSummary'])->name('appointments.summary');
     Route::get('/teams', [ReportController::class, 'teams'])->name('teams');
     Route::get('/agents', [ReportController::class, 'agents'])->name('agents');
     Route::get('/conversion', [ReportController::class, 'conversion'])->name('conversion');

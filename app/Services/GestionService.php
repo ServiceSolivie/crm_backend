@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\LeadStatusEnum;
 use App\Enums\RoleEnum;
+use App\Mail\LeadAssignedToGestionMail;
 use App\Mail\LeadNeedsCorrectionMail;
 use App\Models\Lead;
 use App\Models\LeadStatusHistory;
@@ -21,7 +22,7 @@ class GestionService
      * cursor) - with a single gestion user today this trivially always
      * picks her; it naturally balances once more are added.
      */
-    public function assignToGestion(Lead $lead): User
+    public function assignToGestion(Lead $lead, ?User $sender = null): User
     {
         $gestionUser = User::role(RoleEnum::GESTION->value)
             ->withCount(['gestionLeads as open_gestion_count' => function ($query) {
@@ -33,6 +34,15 @@ class GestionService
         $lead->update(['gestion_assigned_to' => $gestionUser->id]);
 
         $gestionUser->notify(new LeadReceivedNotification($lead));
+
+        // SMTP credentials may not be configured yet - the in-app
+        // notification above is the reliable channel; email is best-effort
+        // on top of it, so a mail failure shouldn't block the assignment.
+        try {
+            Mail::to($gestionUser->email)->send(new LeadAssignedToGestionMail($lead, $sender));
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return $gestionUser;
     }
@@ -66,6 +76,12 @@ class GestionService
             LeadStatusEnum::A_CORRIGER,
             $gestionUser,
             implode(' ; ', $parts),
+            null,
+            [
+                'issue_types' => array_values($issueTypes),
+                'missing_documents' => array_values($missingDocuments ?? []),
+                'comment' => $comment,
+            ],
         );
 
         $agent = $updated->assignedAgent;
@@ -103,10 +119,13 @@ class GestionService
             'stuck_count' => $stuckLeads->count(),
             'stuck_leads' => $stuckLeads,
             'waiting_on_agent_count' => $baseQuery()->where('status', LeadStatusEnum::A_CORRIGER->value)->count(),
-            'validated_this_week' => LeadStatusHistory::whereIn('to_status', [LeadStatusEnum::PDG_OK->value, LeadStatusEnum::VALIDE->value])
+            // Leads this user validated in the last 7 days, each counted once
+            // (Validé is the final step; PDG OK comes before it).
+            'validated_this_week' => LeadStatusHistory::where('to_status', LeadStatusEnum::VALIDE->value)
                 ->where('changed_by', $user->id)
                 ->where('created_at', '>=', now()->subDays(7))
-                ->count(),
+                ->distinct()
+                ->count('lead_id'),
             'avg_hours_in_gestion' => $this->averageHoursInGestion($user),
             // Call2/PDG checkpoint breakdown - current status snapshot, not
             // historical attempt counts, consistent with the rest of this
@@ -118,7 +137,64 @@ class GestionService
             // logic hasn't been built) - this surfaces leads sitting here
             // so it's visible that they still need a manual final step.
             'pdg_ok_count' => $baseQuery()->where('status', LeadStatusEnum::PDG_OK->value)->count(),
+            'queue' => $this->workQueue($user),
         ];
+    }
+
+    /**
+     * Statuses a lead goes through while it is with gestion.
+     *
+     * @return array<int, string>
+     */
+    public static function activeStatuses(): array
+    {
+        return array_map(fn (LeadStatusEnum $s) => $s->value, [
+            LeadStatusEnum::GESTION,
+            LeadStatusEnum::A_CORRIGER,
+            LeadStatusEnum::CALL2_OK,
+            LeadStatusEnum::CALL2_KO,
+            LeadStatusEnum::PDG_OK,
+            LeadStatusEnum::PDG_KO,
+        ]);
+    }
+
+    /**
+     * Every lead currently with this gestion user, oldest in its status
+     * first, with what the dashboard needs to decide the next step
+     * (status, DVC, agent, time in the current status).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function workQueue(User $user): array
+    {
+        $leads = Lead::where('gestion_assigned_to', $user->id)
+            ->whereIn('status', self::activeStatuses())
+            ->with('assignedAgent:id,name')
+            ->addSelect([
+                'status_since' => LeadStatusHistory::select('created_at')
+                    ->whereColumn('lead_id', 'leads.id')
+                    ->latest('created_at')
+                    ->latest('id')
+                    ->limit(1),
+            ])
+            ->get();
+
+        return $leads
+            ->map(fn (Lead $lead) => [
+                'id' => $lead->id,
+                'reference' => $lead->reference,
+                'first_name' => $lead->first_name,
+                'last_name' => $lead->last_name,
+                'phone' => $lead->phone,
+                'insurance_type' => $lead->insurance_type?->value,
+                'status' => $lead->status->value,
+                'dvc_status' => $lead->dvc_status?->value,
+                'agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,
+                'status_since' => $lead->status_since ? \Illuminate\Support\Carbon::parse($lead->status_since)->toIso8601String() : $lead->updated_at?->toIso8601String(),
+            ])
+            ->sortBy('status_since')
+            ->values()
+            ->all();
     }
 
     /**

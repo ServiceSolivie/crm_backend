@@ -20,10 +20,7 @@ class DashboardRepository implements DashboardRepositoryInterface
 {
     public function kpis(?Closure $leadScope, ?Closure $appointmentScope, ?string $from, ?string $to): array
     {
-        $totalLeads = $this->leadQuery($leadScope, $from, $to)->count();
-        $validatedLeads = $this->leadQuery($leadScope, $from, $to)
-            ->where('status', LeadStatusEnum::VALIDE->value)
-            ->count();
+        $period = $this->periodFigures($leadScope, $appointmentScope, $from, $to);
 
         $newToday = $this->leadQuery($leadScope, null, null)
             ->whereDate('created_at', Carbon::today())
@@ -33,9 +30,9 @@ class DashboardRepository implements DashboardRepositoryInterface
             ->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()])
             ->count();
 
-        $totalAppointments = $this->appointmentQuery($appointmentScope, $from, $to)->count();
-        $completedAppointments = $this->appointmentQuery($appointmentScope, $from, $to)
-            ->where('status', AppointmentStatusEnum::REALISE->value)
+        // Current backlog, independent of the period
+        $unassigned = $this->leadQuery($leadScope, null, null)
+            ->whereNull('assigned_to')
             ->count();
 
         $appointmentsToday = $this->appointmentQuery($appointmentScope, null, null)
@@ -47,19 +44,72 @@ class DashboardRepository implements DashboardRepositoryInterface
             ->where('scheduled_at', '>=', Carbon::now())
             ->count();
 
+        $overdueAppointments = $this->appointmentQuery($appointmentScope, null, null)
+            ->whereIn('status', AppointmentStatusEnum::openValues())
+            ->where('scheduled_at', '<', Carbon::now())
+            ->count();
+
+        // Same-length period just before the selected one, for the deltas
+        $previous = null;
+        if ($from && $to) {
+            $start = Carbon::parse($from)->startOfDay();
+            $days = $start->diffInDays(Carbon::parse($to)->startOfDay()) + 1;
+            $previous = $this->periodFigures(
+                $leadScope,
+                $appointmentScope,
+                $start->copy()->subDays($days)->toDateString(),
+                $start->copy()->subDay()->toDateString(),
+            );
+        }
+
         return [
             'leads' => [
-                'total' => $totalLeads,
+                'total' => $period['leads_total'],
                 'new_today' => $newToday,
                 'new_this_week' => $newThisWeek,
-                'conversion_rate' => $totalLeads > 0 ? round(($validatedLeads / $totalLeads) * 100, 2) : 0.0,
+                'unassigned' => $unassigned,
+                'conversion_rate' => $period['conversion_rate'],
+                'previous' => $previous ? [
+                    'total' => $previous['leads_total'],
+                    'conversion_rate' => $previous['conversion_rate'],
+                ] : null,
             ],
             'appointments' => [
-                'total' => $totalAppointments,
+                'total' => $period['appointments_total'],
                 'today' => $appointmentsToday,
                 'upcoming' => $upcomingAppointments,
-                'completion_rate' => $totalAppointments > 0 ? round(($completedAppointments / $totalAppointments) * 100, 2) : 0.0,
+                'overdue' => $overdueAppointments,
+                'completion_rate' => $period['completion_rate'],
+                'previous' => $previous ? [
+                    'total' => $previous['appointments_total'],
+                    'completion_rate' => $previous['completion_rate'],
+                ] : null,
             ],
+        ];
+    }
+
+    /**
+     * Totals and rates for one date range (used for the current and previous period).
+     *
+     * @return array{leads_total: int, conversion_rate: float, appointments_total: int, completion_rate: float}
+     */
+    protected function periodFigures(?Closure $leadScope, ?Closure $appointmentScope, ?string $from, ?string $to): array
+    {
+        $totalLeads = $this->leadQuery($leadScope, $from, $to)->count();
+        $validatedLeads = $this->leadQuery($leadScope, $from, $to)
+            ->where('status', LeadStatusEnum::VALIDE->value)
+            ->count();
+
+        $totalAppointments = $this->appointmentQuery($appointmentScope, $from, $to)->count();
+        $completedAppointments = $this->appointmentQuery($appointmentScope, $from, $to)
+            ->where('status', AppointmentStatusEnum::REALISE->value)
+            ->count();
+
+        return [
+            'leads_total' => $totalLeads,
+            'conversion_rate' => $totalLeads > 0 ? round(($validatedLeads / $totalLeads) * 100, 2) : 0.0,
+            'appointments_total' => $totalAppointments,
+            'completion_rate' => $totalAppointments > 0 ? round(($completedAppointments / $totalAppointments) * 100, 2) : 0.0,
         ];
     }
 
@@ -200,7 +250,7 @@ class DashboardRepository implements DashboardRepositoryInterface
         $validatedQuery = fn () => $this->validatedLeadQuery($leadScope, $from, $to);
 
         $totalExpected = (clone $validatedQuery())->sum('expected_revenue');
-        $totalReceived = Payment::whereIn(
+        $totalReceived = Payment::received()->whereIn(
             'lead_id',
             (clone $validatedQuery())->select('id')
         )->sum('amount');
@@ -211,7 +261,7 @@ class DashboardRepository implements DashboardRepositoryInterface
             ->groupBy('payment_status')
             ->pluck('aggregate', 'payment_status');
 
-        $byPaymentMethod = Payment::whereIn(
+        $byPaymentMethod = Payment::received()->whereIn(
             'lead_id',
             (clone $validatedQuery())->select('id')
         )
@@ -235,7 +285,7 @@ class DashboardRepository implements DashboardRepositoryInterface
                 $monthStart = Carbon::parse($row->month . '-01')->startOfDay();
                 $monthEnd = Carbon::parse($row->month . '-01')->endOfMonth()->endOfDay();
 
-                $received = Payment::whereIn(
+                $received = Payment::received()->whereIn(
                     'lead_id',
                     $this->validatedLeadQuery($leadScope, null, null)->select('id')
                 )

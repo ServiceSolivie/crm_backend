@@ -41,9 +41,19 @@ class ReportService
         return $this->appointments->paginateFiltered($filters, $perPage, $this->agentTeamScope($user));
     }
 
-    public function teamReport(User $user, ?string $from, ?string $to, int $perPage = 15): LengthAwarePaginator
+    public function leadSummary(User $user, LeadFilter $filters): array
     {
-        return $this->reports->paginateTeamReport($this->scope($user, 'id'), $from, $to, $perPage);
+        return $this->reports->leadSummary($this->scope($user, 'team_id'), $filters);
+    }
+
+    public function appointmentSummary(User $user, AppointmentFilter $filters): array
+    {
+        return $this->reports->appointmentSummary($this->agentTeamScope($user), $filters);
+    }
+
+    public function teamReport(User $user, ?int $teamId, ?string $from, ?string $to, int $perPage = 15): LengthAwarePaginator
+    {
+        return $this->reports->paginateTeamReport($this->scope($user, 'id'), $teamId, $from, $to, $perPage);
     }
 
     public function agentReport(User $user, ?int $teamId, ?string $from, ?string $to, int $perPage = 15): LengthAwarePaginator
@@ -51,9 +61,9 @@ class ReportService
         return $this->reports->paginateAgentReport($this->scope($user, 'team_id'), $teamId, $from, $to, $perPage);
     }
 
-    public function conversionReport(User $user, string $groupBy, ?string $from, ?string $to, int $perPage = 15): LengthAwarePaginator
+    public function conversionReport(User $user, string $groupBy, ?int $teamId, ?string $from, ?string $to, int $perPage = 15): LengthAwarePaginator
     {
-        return $this->reports->paginateConversionReport($groupBy, $this->scope($user, 'leads.team_id'), $from, $to, $perPage);
+        return $this->reports->paginateConversionReport($groupBy, $this->scope($user, 'leads.team_id'), $teamId, $from, $to, $perPage);
     }
 
     public function canViewRevenue(User $user): bool

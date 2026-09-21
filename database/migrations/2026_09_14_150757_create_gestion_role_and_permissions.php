@@ -21,11 +21,11 @@ return new class extends Migration
             Permission::findOrCreate($name, 'web');
         }
 
-        $superAdmin = Role::findByName('super_admin', 'web');
+        $superAdmin = Role::findOrCreate('super_admin', 'web');
         $superAdmin->givePermissionTo($this->newPermissions);
 
         $gestion = Role::findOrCreate('gestion', 'web');
-        $gestion->syncPermissions([
+        $gestion->syncPermissions($this->ensure([
             ...$this->newPermissions,
             'leads.update_status',
             'lead_status_history.view',
@@ -34,9 +34,25 @@ return new class extends Migration
             'documents.upload',
             'documents.download',
             'notifications.view',
-        ]);
+        ]));
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    /**
+     * Fresh installs run migrations before the permission seeder: create any
+     * permission granted here that does not exist yet.
+     *
+     * @param  array<int, string>  $names
+     * @return array<int, string>
+     */
+    private function ensure(array $names): array
+    {
+        foreach ($names as $name) {
+            Permission::findOrCreate($name, 'web');
+        }
+
+        return $names;
     }
 
     public function down(): void

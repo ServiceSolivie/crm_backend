@@ -25,7 +25,7 @@ return new class extends Migration
             Permission::findOrCreate($name, 'web');
         }
 
-        $superAdmin = Role::findByName('super_admin', 'web');
+        $superAdmin = Role::findOrCreate('super_admin', 'web');
         $superAdmin->givePermissionTo($this->permissions);
     }
 

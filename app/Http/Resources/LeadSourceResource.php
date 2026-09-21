@@ -16,6 +16,7 @@ class LeadSourceResource extends BaseResource
             'name' => $this->name,
             'code' => $this->code,
             'is_active' => $this->is_active,
+            'leads_count' => $this->whenCounted('leads'),
             'created_at' => $this->formatDate($this->created_at),
             'updated_at' => $this->formatDate($this->updated_at),
         ];

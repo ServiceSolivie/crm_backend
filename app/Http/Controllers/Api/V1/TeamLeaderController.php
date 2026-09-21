@@ -99,16 +99,16 @@ class TeamLeaderController extends Controller
             };
 
             $reason = null;
-            if ($lead->status === LeadStatusEnum::PAS_DE_REPONSE->value && $hoursIdle > 24) {
+            if ($lead->status === LeadStatusEnum::PAS_DE_REPONSE && $hoursIdle > 24) {
                 $reason = 'Pas de réponse depuis ' . round($hoursIdle) . 'h';
-            } elseif ($lead->status === LeadStatusEnum::RAPPEL->value) {
+            } elseif ($lead->status === LeadStatusEnum::RAPPEL) {
                 $hasAppointment = Appointment::where('lead_id', $lead->id)
                     ->where('status', 'PLANIFIE')
                     ->exists();
                 if (! $hasAppointment && $hoursIdle > 48) {
                     $reason = 'Rappel en retard de ' . round($hoursIdle - 48) . 'h';
                 }
-            } elseif ($lead->status === LeadStatusEnum::EN_ATTENTE_CLIENT->value && $hoursIdle > 48) {
+            } elseif ($lead->status === LeadStatusEnum::EN_ATTENTE_CLIENT && $hoursIdle > 48) {
                 $reason = 'En attente depuis ' . round($hoursIdle) . 'h';
             }
 

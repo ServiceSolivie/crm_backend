@@ -58,4 +58,20 @@ class Team extends Model
     {
         return $this->hasManyThrough(Appointment::class, Lead::class, 'team_id', 'lead_id');
     }
+
+    /**
+     * Calls logged on this team's leads.
+     */
+    public function calls(): HasManyThrough
+    {
+        return $this->hasManyThrough(LeadCall::class, Lead::class, 'team_id', 'lead_id');
+    }
+
+    /**
+     * Payments received on this team's leads.
+     */
+    public function payments(): HasManyThrough
+    {
+        return $this->hasManyThrough(Payment::class, Lead::class, 'team_id', 'lead_id');
+    }
 }

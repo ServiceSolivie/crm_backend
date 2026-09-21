@@ -22,6 +22,7 @@ class LeadStatusHistory extends Model
         'to_status',
         'changed_by',
         'comment',
+        'meta',
     ];
 
     protected function casts(): array
@@ -29,6 +30,7 @@ class LeadStatusHistory extends Model
         return [
             'from_status' => LeadStatusEnum::class,
             'to_status' => LeadStatusEnum::class,
+            'meta' => 'array',
         ];
     }
 

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -97,6 +98,22 @@ class User extends Authenticatable
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class, 'created_by');
+    }
+
+    /**
+     * Calls this user logged on leads.
+     */
+    public function calls(): HasMany
+    {
+        return $this->hasMany(LeadCall::class, 'user_id');
+    }
+
+    /**
+     * Payments received on the leads assigned to this user.
+     */
+    public function assignedLeadPayments(): HasManyThrough
+    {
+        return $this->hasManyThrough(Payment::class, Lead::class, 'assigned_to', 'lead_id');
     }
 
     public function vaultCredentials(): BelongsToMany

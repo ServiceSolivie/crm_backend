@@ -17,6 +17,7 @@ class ConversionReportRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'team_id' => ['nullable', 'integer', 'exists:teams,id'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'group_by' => ['nullable', 'string', 'in:source,team,agent,insurance_type'],

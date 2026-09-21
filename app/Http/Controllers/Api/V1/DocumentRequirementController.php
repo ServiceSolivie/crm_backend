@@ -31,6 +31,7 @@ class DocumentRequirementController extends Controller
         $this->authorize('viewAny', DocumentType::class);
 
         $types = $this->documentTypeRepository->newQuery()
+            ->withCount('requirements')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -51,7 +52,12 @@ class DocumentRequirementController extends Controller
     {
         $this->authorize('manage', DocumentType::class);
 
-        $type = $this->documentTypeRepository->update($documentType->id, $request->validated());
+        $data = $request->validated();
+        if ($documentType->isSystem() && array_key_exists('is_active', $data) && ! $data['is_active']) {
+            return $this->error('Le DVC signé est requis pour tous les leads : il ne peut pas être désactivé.', 422);
+        }
+
+        $type = $this->documentTypeRepository->update($documentType->id, $data);
 
         return $this->success(new DocumentTypeResource($type));
     }
@@ -59,6 +65,10 @@ class DocumentRequirementController extends Controller
     public function deleteDocumentType(DocumentType $documentType): JsonResponse
     {
         $this->authorize('manage', DocumentType::class);
+
+        if ($documentType->isSystem()) {
+            return $this->error('Le DVC signé est requis pour tous les leads : il ne peut pas être supprimé.', 409);
+        }
 
         $usedInDocuments = \App\Models\LeadDocument::where('document_type', $documentType->name)->exists();
         if ($usedInDocuments) {

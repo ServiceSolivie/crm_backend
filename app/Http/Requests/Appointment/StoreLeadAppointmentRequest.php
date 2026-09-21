@@ -21,6 +21,7 @@ class StoreLeadAppointmentRequest extends FormRequest
         return [
             'agent_id' => ['required', 'integer', 'exists:users,id'],
             'scheduled_at' => ['required', 'date'],
+            'duration_minutes' => ['nullable', 'integer', 'min:5', 'max:480'],
             'status' => ['sometimes', Rule::in(AppointmentStatusEnum::values())],
             'location' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
