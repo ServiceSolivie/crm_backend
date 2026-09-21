@@ -23,6 +23,7 @@ class ContractService
     public function __construct(
         protected ContractRepositoryInterface $contracts,
         protected ContractTemplateRegistry $registry,
+        protected LeadDvcStatus $dvcStatus,
     ) {}
 
     /**
@@ -112,6 +113,11 @@ class ContractService
                 'generated_by' => $user->id,
             ]);
 
+            // A generated DVC puts the lead "en attente de signature"
+            if ($lead) {
+                $this->dvcStatus->refresh($lead);
+            }
+
             return $contract->load(['lead:id,reference,first_name,last_name', 'generator:id,name']);
         });
     }
@@ -131,7 +137,13 @@ class ContractService
     {
         Storage::disk(config('contracts.storage_disk', 'local'))->delete($contract->file_path);
 
-        return $this->contracts->delete($contract->id);
+        $deleted = $this->contracts->delete($contract->id);
+
+        if ($contract->lead) {
+            $this->dvcStatus->refresh($contract->lead);
+        }
+
+        return $deleted;
     }
 
     /**

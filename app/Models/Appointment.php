@@ -21,6 +21,7 @@ class Appointment extends Model
         'lead_id',
         'agent_id',
         'scheduled_at',
+        'duration_minutes',
         'status',
         'location',
         'notes',
@@ -31,6 +32,7 @@ class Appointment extends Model
     {
         return [
             'scheduled_at' => 'datetime',
+            'duration_minutes' => 'integer',
             'status' => AppointmentStatusEnum::class,
         ];
     }

@@ -36,6 +36,24 @@ class ReportController extends Controller
         return $this->success(LeadResource::collection($leads));
     }
 
+    public function leadsSummary(Request $request, LeadFilter $filters): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless($this->reportService->canView($user), 403, 'You do not have permission to view reports.');
+
+        return $this->success($this->reportService->leadSummary($user, $filters));
+    }
+
+    public function appointmentsSummary(Request $request, AppointmentFilter $filters): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless($this->reportService->canView($user), 403, 'You do not have permission to view reports.');
+
+        return $this->success($this->reportService->appointmentSummary($user, $filters));
+    }
+
     public function appointments(Request $request, AppointmentFilter $filters): JsonResponse
     {
         $user = $request->user();
@@ -59,6 +77,7 @@ class ReportController extends Controller
 
         $teams = $this->reportService->teamReport(
             $user,
+            $request->validated('team_id') !== null ? (int) $request->validated('team_id') : null,
             $request->validated('from'),
             $request->validated('to'),
             $perPage,
@@ -139,6 +158,7 @@ class ReportController extends Controller
         $conversion = $this->reportService->conversionReport(
             $user,
             $groupBy,
+            $request->validated('team_id') !== null ? (int) $request->validated('team_id') : null,
             $request->validated('from'),
             $request->validated('to'),
             $perPage,

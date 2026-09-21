@@ -14,6 +14,17 @@ class PaymentResource extends BaseResource
         return [
             'id' => $this->id,
             'amount' => $this->amount,
+            'status' => $this->status?->value,
+            'status_label' => $this->status?->label(),
+            'source' => $this->source?->value,
+            'source_label' => $this->source?->label(),
+            'external_id' => $this->external_id,
+            'failure_reason' => $this->failure_reason,
+            'status_changed_at' => $this->formatDate($this->status_changed_at),
+            'status_changed_by' => $this->whenLoaded('statusChanger', fn () => $this->statusChanger ? [
+                'id' => $this->statusChanger->id,
+                'name' => $this->statusChanger->name,
+            ] : null),
             'payment_date' => $this->payment_date->toDateString(),
             'payment_method' => $this->payment_method->value,
             'payment_method_label' => $this->payment_method->label(),

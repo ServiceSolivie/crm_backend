@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ClientTypeEnum;
+use App\Enums\DvcStatusEnum;
 use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentStatusEnum;
@@ -17,6 +18,7 @@ use App\Notifications\LeadReceivedNotification;
 use App\Repositories\Contracts\LeadRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -80,7 +82,7 @@ class LeadService extends BaseService
     /**
      * Restrict the lead query according to the user's view permissions.
      */
-    protected function visibilityScope(User $user): \Closure
+    public function visibilityScope(User $user): \Closure
     {
         return function (Builder $query) use ($user) {
             if ($user->can(PermissionEnum::LEADS_VIEW_ALL->value)) {
@@ -144,6 +146,41 @@ class LeadService extends BaseService
     }
 
     /**
+     * Create a second lead for a different insurance product, for a
+     * contact the agent already has. Carries over the contact's own
+     * details so nothing needs retyping, auto-assigns it to the same
+     * agent (no separate LEADS_ASSIGN check - they already own the
+     * contact), and skips doublon detection entirely since this is a
+     * deliberate second product for a known contact, not a duplicate
+     * submission of the same one.
+     */
+    public function createCrossSell(Lead $sourceLead, string $insuranceType, User $agent, ?string $clientType = null, ?string $comment = null): Lead
+    {
+        $lead = $this->createLead([
+            'first_name' => $sourceLead->first_name,
+            'last_name' => $sourceLead->last_name,
+            'phone' => $sourceLead->phone,
+            'email' => $sourceLead->email,
+            'city' => $sourceLead->city,
+            'address' => $sourceLead->address,
+            'birth_date' => $sourceLead->birth_date,
+            'lead_source_id' => $sourceLead->lead_source_id,
+            'insurance_type' => $insuranceType,
+            'client_type' => $clientType,
+            'assigned_to' => $agent->id,
+            'team_id' => $agent->team_id,
+        ], $agent);
+
+        $note = "Vente croisée depuis le lead {$sourceLead->reference} (#{$sourceLead->id})";
+        if ($comment) {
+            $note .= " : {$comment}";
+        }
+        $this->addNote($lead, $agent, $note);
+
+        return $lead->load(['assignedAgent', 'team', 'leadSource', 'creator']);
+    }
+
+    /**
      * Update lead details. Status changes go through updateStatus().
      */
     public function updateLead(Lead $lead, array $data): Lead
@@ -201,46 +238,97 @@ class LeadService extends BaseService
      * Move a lead to a new status, recording the transition in the
      * status history.
      */
-    public function updateStatus(Lead $lead, LeadStatusEnum $status, User $changedBy, ?string $comment = null, ?string $expectedRevenue = null): Lead
+    public function updateStatus(Lead $lead, LeadStatusEnum $status, User $changedBy, ?string $comment = null, ?string $expectedRevenue = null, ?array $meta = null): Lead
     {
         $fromStatus = $lead->status;
 
-        if ($fromStatus === LeadStatusEnum::VALIDE && $status !== LeadStatusEnum::VALIDE) {
-            if ($lead->payments()->exists()) {
-                throw ValidationException::withMessages([
-                    'status' => 'Impossible de changer le statut : des paiements sont enregistrés. Supprimez tous les paiements d\'abord.',
-                ]);
-            }
-
-            $lead->update([
-                'status' => $status->value,
-                'expected_revenue' => null,
-                'payment_status' => null,
-                'validated_at' => null,
+        // Gestion and Validé need the client's signed DVC in the dossier
+        if (in_array($status, [LeadStatusEnum::GESTION, LeadStatusEnum::VALIDE], true)
+            && $status !== $fromStatus
+            && $lead->dvc_status !== DvcStatusEnum::SIGNE) {
+            throw ValidationException::withMessages([
+                'status' => $status === LeadStatusEnum::GESTION
+                    ? 'Ajoutez le DVC signé au dossier avant d\'envoyer le lead en gestion.'
+                    : 'Ajoutez le DVC signé au dossier avant de valider le lead.',
             ]);
-        } elseif ($status === LeadStatusEnum::VALIDE && $fromStatus !== LeadStatusEnum::VALIDE) {
-            $lead->update([
-                'status' => $status->value,
-                'expected_revenue' => $expectedRevenue,
-                'payment_status' => PaymentStatusEnum::NON_PAYE->value,
-                'validated_at' => now(),
-            ]);
-        } else {
-            $lead->update(['status' => $status->value]);
         }
+
+        // Payments are independent of the pipeline: changing status never
+        // touches them. Validé only records when the lead was validated, and
+        // can set the contract total when no payment gave it yet.
+        $changes = ['status' => $status->value];
+
+        if ($status === LeadStatusEnum::VALIDE && $fromStatus !== LeadStatusEnum::VALIDE) {
+            $changes['validated_at'] = now();
+        } elseif ($fromStatus === LeadStatusEnum::VALIDE && $status !== LeadStatusEnum::VALIDE) {
+            $changes['validated_at'] = null;
+        }
+
+        if ($expectedRevenue !== null && $lead->expected_revenue === null) {
+            $changes['expected_revenue'] = $expectedRevenue;
+            $changes['payment_status'] = $lead->payment_status?->value ?? PaymentStatusEnum::NON_PAYE->value;
+        }
+
+        $lead->update($changes);
 
         $lead->statusHistories()->create([
             'from_status' => $fromStatus,
             'to_status' => $status->value,
             'changed_by' => $changedBy->id,
             'comment' => $comment,
+            'meta' => $meta,
         ]);
 
         if ($status === LeadStatusEnum::GESTION && $fromStatus !== LeadStatusEnum::GESTION) {
-            app(GestionService::class)->assignToGestion($lead);
+            app(GestionService::class)->assignToGestion($lead, $changedBy);
         }
 
         return $lead->refresh()->load(['assignedAgent', 'gestionAssignedAgent', 'team', 'leadSource', 'creator']);
+    }
+
+    /**
+     * Apply one action to several leads. Each lead is authorized and applied
+     * on its own, so one refusal (policy, doublon, payments…) does not undo
+     * the others; the result says what happened to every id.
+     *
+     * @param  array<int, int>  $ids
+     * @return array{done: int, failed: int, results: array<int, array{id: int, ok: bool, error: ?string}>}
+     */
+    public function bulk(User $user, array $ids, string $action, array $data): array
+    {
+        $ability = match ($action) {
+            'assign' => 'assign',
+            'status' => 'updateStatus',
+            'delete' => 'delete',
+        };
+
+        $leads = Lead::whereIn('id', $ids)->get()->keyBy('id');
+        $results = [];
+
+        foreach ($ids as $id) {
+            $lead = $leads->get($id);
+
+            if (! $lead || ! $user->can($ability, $lead)) {
+                $results[] = ['id' => $id, 'ok' => false, 'error' => $lead ? 'Action non autorisée sur ce lead.' : 'Lead introuvable.'];
+
+                continue;
+            }
+
+            try {
+                DB::transaction(fn () => match ($action) {
+                    'assign' => $this->assign($lead, (int) $data['assigned_to'], $user),
+                    'status' => $this->updateStatus($lead, LeadStatusEnum::from($data['status']), $user, $data['comment'] ?? null),
+                    'delete' => $this->deleteLead($lead),
+                });
+                $results[] = ['id' => $id, 'ok' => true, 'error' => null];
+            } catch (ValidationException $e) {
+                $results[] = ['id' => $id, 'ok' => false, 'error' => collect($e->errors())->flatten()->first()];
+            }
+        }
+
+        $done = count(array_filter($results, fn ($r) => $r['ok']));
+
+        return ['done' => $done, 'failed' => count($results) - $done, 'results' => $results];
     }
 
     public function addNote(Lead $lead, User $user, string $note): LeadNote

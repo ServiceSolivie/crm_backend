@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\LeadStatusEnum;
 use Illuminate\Http\Request;
 
 class LeadResource extends BaseResource
@@ -60,8 +61,26 @@ class LeadResource extends BaseResource
             'payment_status' => $this->payment_status?->value,
             'payment_status_label' => $this->payment_status?->label(),
             'validated_at' => $this->formatDate($this->validated_at),
+            'dvc_status' => $this->dvc_status?->value,
+            'dvc_status_label' => $this->dvc_status?->label(),
+            'dvc_signed_at' => $this->formatDate($this->dvc_signed_at),
             'payments_count' => $this->whenCounted('payments'),
             'calls_count' => $this->whenCounted('calls'),
+            'next_action' => $this->when(
+                $this->relationLoaded('nextAppointment'),
+                fn () => $this->nextAction(),
+            ),
+            'last_flag' => $this->whenLoaded('lastFlag', fn () => $this->lastFlag ? [
+                'message' => $this->lastFlag->meta['comment'] ?? $this->lastFlag->comment,
+                'issue_types' => $this->lastFlag->meta['issue_types'] ?? [],
+                'documents' => $this->lastFlag->meta['missing_documents'] ?? [],
+                'summary' => $this->lastFlag->comment,
+                'by' => $this->lastFlag->changedBy ? [
+                    'id' => $this->lastFlag->changedBy->id,
+                    'name' => $this->lastFlag->changedBy->name,
+                ] : null,
+                'at' => $this->formatDate($this->lastFlag->created_at),
+            ] : null),
             'created_by' => $this->whenLoaded('creator', fn () => [
                 'id' => $this->creator->id,
                 'name' => $this->creator->name,
@@ -69,5 +88,34 @@ class LeadResource extends BaseResource
             'created_at' => $this->formatDate($this->created_at),
             'updated_at' => $this->formatDate($this->updated_at),
         ];
+    }
+
+    /**
+     * What the agent has to do next on this lead: the earliest open
+     * appointment, or fixing the dossier when gestion sent it back.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function nextAction(): ?array
+    {
+        if ($appointment = $this->nextAppointment) {
+            return [
+                'type' => 'appointment',
+                'id' => $appointment->id,
+                'at' => $this->formatDate($appointment->scheduled_at),
+                'overdue' => $appointment->scheduled_at->isPast(),
+            ];
+        }
+
+        if ($this->status === LeadStatusEnum::A_CORRIGER) {
+            return [
+                'type' => 'missing_document',
+                'id' => null,
+                'at' => null,
+                'overdue' => false,
+            ];
+        }
+
+        return null;
     }
 }

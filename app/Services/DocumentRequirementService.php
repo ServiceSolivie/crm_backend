@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ClientTypeEnum;
+use App\Enums\DocumentTypeEnum;
 use App\Enums\InsuranceTypeEnum;
 use App\Models\DocumentRequirement;
 use App\Models\DocumentType;
@@ -40,15 +41,33 @@ class DocumentRequirementService
             $query->whereNull('document_requirements.client_type');
         }
 
-        return $query
+        $documents = $query
             ->orderBy('document_types.sort_order')
             ->orderBy('document_types.name')
             ->select('document_types.name', 'document_types.label')
             ->distinct()
             ->get()
             ->map(fn ($row) => ['name' => $row->name, 'label' => $row->label])
+            ->reject(fn ($doc) => $doc['name'] === DocumentTypeEnum::DVC->value)
             ->values()
             ->all();
+
+        return [self::dvcDocument(), ...$documents];
+    }
+
+    /**
+     * The signed DVC is needed for every product, whatever the admin matrix
+     * says: it always comes first in the dossier.
+     *
+     * @return array{name: string, label: string}
+     */
+    public static function dvcDocument(): array
+    {
+        static $label = null;
+        $label ??= DocumentType::query()->where('name', DocumentTypeEnum::DVC->value)->value('label')
+            ?? DocumentTypeEnum::DVC->label();
+
+        return ['name' => DocumentTypeEnum::DVC->value, 'label' => $label];
     }
 
     public function requiresClientType(InsuranceTypeEnum $insuranceType): bool
@@ -64,7 +83,10 @@ class DocumentRequirementService
      */
     public function getRequirementsMatrix(): array
     {
-        $allTypes = $this->documentTypes->activeOrdered();
+        // DVC is required everywhere by code, not configurable in the matrix
+        $allTypes = $this->documentTypes->activeOrdered()
+            ->reject(fn (DocumentType $t) => $t->name === DocumentTypeEnum::DVC->value)
+            ->values();
         $allRequirements = DocumentRequirement::all();
 
         $matrix = [];
@@ -101,6 +123,13 @@ class DocumentRequirementService
                 'label' => $t->label,
             ])->values()->all(),
             'matrix' => $matrix,
+            // Required for every product by the code (shown locked in the matrix)
+            'always_required' => $this->documentTypes->newQuery()
+                ->where('name', DocumentTypeEnum::DVC->value)
+                ->get()
+                ->map(fn (DocumentType $t) => ['id' => $t->id, 'name' => $t->name, 'label' => $t->label])
+                ->values()
+                ->all(),
         ];
     }
 

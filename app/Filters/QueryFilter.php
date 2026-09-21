@@ -34,7 +34,7 @@ abstract class QueryFilter
 
             $method = Str::camel($key);
 
-            if (method_exists($this, $method)) {
+            if (method_exists($this, $method) && ! $this->isInternal($method)) {
                 $this->$method($value);
             }
         }
@@ -62,6 +62,41 @@ abstract class QueryFilter
     }
 
     /**
+     * Helper and sort methods that must never be reachable from a query key.
+     */
+    protected function isInternal(string $method): bool
+    {
+        return str_starts_with($method, 'sortBy')
+            || in_array($method, ['apply', 'filters', 'applySort', 'sortable', 'values', 'whereIn', 'isInternal'], true);
+    }
+
+    /**
+     * A filter value as a list: accepts ?key=a, ?key=a,b and ?key[]=a&key[]=b.
+     *
+     * @return array<int, string>
+     */
+    protected function values(string|array $value): array
+    {
+        $list = is_array($value) ? $value : explode(',', $value);
+
+        return array_values(array_filter(array_map(fn ($v) => trim((string) $v), $list), fn ($v) => $v !== ''));
+    }
+
+    /**
+     * where() for one value, whereIn() for several.
+     */
+    protected function whereIn(string $column, string|array $value): void
+    {
+        $values = $this->values($value);
+
+        if (count($values) === 1) {
+            $this->builder->where($column, $values[0]);
+        } elseif ($values) {
+            $this->builder->whereIn($column, $values);
+        }
+    }
+
+    /**
      * Apply the `?sort=field,-other_field` query parameter.
      */
     protected function applySort(string $sort): void
@@ -70,7 +105,11 @@ abstract class QueryFilter
             $direction = Str::startsWith($field, '-') ? 'desc' : 'asc';
             $column = ltrim($field, '-');
 
-            if (in_array($column, $this->sortable(), true)) {
+            $custom = 'sortBy'.Str::studly($column);
+
+            if (method_exists($this, $custom)) {
+                $this->$custom($direction);
+            } elseif (in_array($column, $this->sortable(), true)) {
                 $this->builder->orderBy($column, $direction);
             }
         }

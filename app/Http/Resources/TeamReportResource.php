@@ -35,6 +35,12 @@ class TeamReportResource extends BaseResource
                 'completed' => $completedAppointments,
                 'completion_rate' => $totalAppointments > 0 ? round(($completedAppointments / $totalAppointments) * 100, 2) : 0.0,
             ],
+            'calls' => [
+                'total' => (int) $this->total_calls,
+            ],
+            'revenue' => [
+                'received' => round((float) $this->revenue_received, 2),
+            ],
         ];
     }
 }

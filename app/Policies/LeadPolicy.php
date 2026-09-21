@@ -44,6 +44,17 @@ class LeadPolicy
         return $user->can(PermissionEnum::LEADS_ASSIGN->value) && $this->canAccess($user, $lead);
     }
 
+    /**
+     * Creating a second lead for a different product, for a contact you
+     * already have, doesn't require the general LEADS_CREATE permission -
+     * only that you can already access this lead (own it, or see your
+     * team's/all leads).
+     */
+    public function crossSell(User $user, Lead $lead): bool
+    {
+        return $this->canAccess($user, $lead);
+    }
+
     public function updateStatus(User $user, Lead $lead): bool
     {
         return $user->can(PermissionEnum::LEADS_UPDATE_STATUS->value) && $this->canAccess($user, $lead);

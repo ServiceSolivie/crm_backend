@@ -17,6 +17,7 @@ class UpdateAppointmentRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'duration_minutes' => ['sometimes', 'integer', 'min:5', 'max:480'],
             'agent_id' => ['sometimes', 'integer', 'exists:users,id'],
             'location' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],

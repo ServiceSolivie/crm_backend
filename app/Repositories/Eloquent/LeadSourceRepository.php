@@ -16,7 +16,7 @@ class LeadSourceRepository extends BaseRepository implements LeadSourceRepositor
 
     public function paginateFiltered(LeadSourceFilter $filters, int $perPage = 15): LengthAwarePaginator
     {
-        return $this->newQuery()->filter($filters)->paginate($perPage);
+        return $this->newQuery()->withCount('leads')->filter($filters)->paginate($perPage);
     }
 
     public function leadsCount(int $leadSourceId): int

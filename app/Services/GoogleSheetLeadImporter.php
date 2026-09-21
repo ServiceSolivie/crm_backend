@@ -3,15 +3,36 @@
 namespace App\Services;
 
 use App\Enums\InsuranceTypeEnum;
+use App\Enums\LeadStatusEnum;
 use App\Models\GoogleSheetSyncLog;
 use App\Models\Lead;
 use App\Models\LeadSource;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class GoogleSheetLeadImporter
 {
+    /**
+     * Once a lead reaches one of these statuses, a sheet-driven agent
+     * change is ignored rather than applied - by this point it's being
+     * actively handled (gestion review) or already signed, so a stray
+     * edit to the sheet's agent column must never silently reassign it
+     * out from under whoever has it. Earlier statuses are still fair
+     * game - that's exactly the "agent was absent/left" case this
+     * reassignment path exists for.
+     */
+    protected const REASSIGNMENT_LOCKED_STATUSES = [
+        LeadStatusEnum::GESTION,
+        LeadStatusEnum::A_CORRIGER,
+        LeadStatusEnum::CALL2_OK,
+        LeadStatusEnum::CALL2_KO,
+        LeadStatusEnum::PDG_OK,
+        LeadStatusEnum::PDG_KO,
+        LeadStatusEnum::VALIDE,
+    ];
+
     protected const SHEET_COLUMNS = [
         'Lead' => [
             'source' => 0,
@@ -408,8 +429,12 @@ class GoogleSheetLeadImporter
     /**
      * A repeat webhook call about a row we've already created a lead for —
      * matched unambiguously by sheet_row_key, never by phone/email. Merges
-     * in any new field data, and fills in the agent (with the same doublon
-     * check used at ingestion) if the row didn't have one yet.
+     * in any new field data, fills in the agent (with the same doublon
+     * check used at ingestion) if the row didn't have one yet, and applies
+     * a genuine agent change if the row now names someone different -
+     * unless the lead has already moved into gestion review or been
+     * validated, in which case a stray sheet edit is ignored rather than
+     * silently reassigning it away from whoever is actively handling it.
      *
      * @return array{status: string, lead_id: int}
      */
@@ -436,6 +461,16 @@ class GoogleSheetLeadImporter
         if ($agentId && is_null($lead->assigned_to)) {
             if ($doublon = $this->leadService->findRecentDoublon($lead)) {
                 $lead->update(['is_doublon' => true, 'doublon_of_lead_id' => $doublon->id]);
+            } else {
+                $this->leadService->assign($lead, $agentId);
+            }
+        } elseif ($agentId && $agentId !== $lead->assigned_to) {
+            if (in_array($lead->status, self::REASSIGNMENT_LOCKED_STATUSES, true)) {
+                Log::info('google_sheets_webhook: reassignment ignored - lead past reassignable stage', [
+                    'lead_id' => $lead->id,
+                    'status' => $lead->status->value,
+                    'attempted_agent_id' => $agentId,
+                ]);
             } else {
                 $this->leadService->assign($lead, $agentId);
             }

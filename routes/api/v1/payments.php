@@ -6,5 +6,6 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth:sanctum', 'active'])->prefix('leads/{lead}/payments')->name('leads.payments.')->group(function () {
     Route::get('/', [PaymentController::class, 'index'])->name('index');
     Route::post('/', [PaymentController::class, 'store'])->name('store');
+    Route::patch('/{payment}/status', [PaymentController::class, 'updateStatus'])->name('update-status');
     Route::delete('/{payment}', [PaymentController::class, 'destroy'])->name('destroy');
 });

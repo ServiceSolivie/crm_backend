@@ -17,6 +17,9 @@ class DocumentTypeResource extends BaseResource
             'label' => $this->label,
             'is_active' => $this->is_active,
             'sort_order' => $this->sort_order,
+            // System type (signed DVC): always required, locked in the admin
+            'is_system' => $this->resource->isSystem(),
+            'requirements_count' => $this->whenCounted('requirements'),
             'created_at' => $this->formatDate($this->created_at),
         ];
     }

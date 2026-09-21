@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\PaymentRecordStatusEnum;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\StorePaymentRequest;
 use App\Http\Resources\PaymentResource;
@@ -10,6 +11,7 @@ use App\Models\Payment;
 use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class PaymentController extends Controller
 {
@@ -31,6 +33,24 @@ class PaymentController extends Controller
         $payment = $this->paymentService->createPayment($lead, $request->validated(), $request->user());
 
         return $this->created(new PaymentResource($payment), 'Paiement enregistré avec succès');
+    }
+
+    /**
+     * PATCH /leads/{lead}/payments/{payment}/status { status, reason? }
+     */
+    public function updateStatus(Request $request, Lead $lead, Payment $payment): JsonResponse
+    {
+        $data = $request->validate([
+            'status' => ['required', Rule::in(PaymentRecordStatusEnum::values())],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+        $status = PaymentRecordStatusEnum::from($data['status']);
+
+        $this->authorize('updateStatus', [$payment, $status]);
+
+        $payment = $this->paymentService->changeStatus($payment, $status, $request->user(), $data['reason'] ?? null);
+
+        return $this->success(new PaymentResource($payment), 'Statut du paiement mis à jour');
     }
 
     public function destroy(Lead $lead, Payment $payment): JsonResponse

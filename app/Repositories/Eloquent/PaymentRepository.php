@@ -16,6 +16,7 @@ class PaymentRepository extends BaseRepository implements PaymentRepositoryInter
     {
         return (string) $this->newQuery()
             ->where('lead_id', $leadId)
+            ->received()
             ->sum('amount');
     }
 }

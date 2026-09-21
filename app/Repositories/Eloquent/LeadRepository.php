@@ -23,6 +23,7 @@ class LeadRepository extends BaseRepository implements LeadRepositoryInterface
             'team',
             'creator',
             'doublonOf',
+            'nextAppointment',
         ])->withCount('calls');
 
         if ($scope) {

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\DocumentTypeEnum;
 use App\Models\Lead;
 use App\Models\LeadDocument;
 use App\Models\User;
@@ -16,39 +17,30 @@ class LeadDocumentService
     public function __construct(
         protected LeadDocumentRepositoryInterface $repository,
         protected DocumentRequirementService $requirementService,
+        protected LeadDvcStatus $dvcStatus,
     ) {}
+
+    /**
+     * Documents that can be uploaded for this lead: the product's list
+     * (DVC first), or only the DVC while the product / client type is unknown.
+     *
+     * @return array{0: array<int, array{name: string, label: string}>, 1: bool}
+     */
+    protected function requiredFor(Lead $lead): array
+    {
+        $required = $lead->insurance_type
+            ? $this->requirementService->getRequiredDocuments($lead->insurance_type, $lead->client_type)
+            : [DocumentRequirementService::dvcDocument()];
+
+        return [$required ?? [DocumentRequirementService::dvcDocument()], $required === null];
+    }
 
     /**
      * Get the full dossier status for a lead: required docs, uploaded docs, missing docs, completion %.
      */
     public function getDossierStatus(Lead $lead): array
     {
-        if ($lead->insurance_type === null) {
-            return [
-                'requires_client_type' => false,
-                'completion' => 0,
-                'total_required' => 0,
-                'total_uploaded' => 0,
-                'total_missing' => 0,
-                'documents' => [],
-            ];
-        }
-
-        $required = $this->requirementService->getRequiredDocuments(
-            $lead->insurance_type,
-            $lead->client_type,
-        );
-
-        if ($required === null) {
-            return [
-                'requires_client_type' => true,
-                'completion' => 0,
-                'total_required' => 0,
-                'total_uploaded' => 0,
-                'total_missing' => 0,
-                'documents' => [],
-            ];
-        }
+        [$required, $requiresClientType] = $this->requiredFor($lead);
 
         $uploaded = $lead->documents->keyBy(fn (LeadDocument $doc) => $doc->document_type);
 
@@ -67,7 +59,7 @@ class LeadDocumentService
         $totalUploaded = count(array_filter($documents, fn ($d) => $d['status'] === 'uploaded'));
 
         return [
-            'requires_client_type' => false,
+            'requires_client_type' => $requiresClientType,
             'completion' => $totalRequired > 0 ? round(($totalUploaded / $totalRequired) * 100) : 100,
             'total_required' => $totalRequired,
             'total_uploaded' => $totalUploaded,
@@ -78,19 +70,7 @@ class LeadDocumentService
 
     public function uploadDocument(Lead $lead, string $type, UploadedFile $file, User $uploader): LeadDocument
     {
-        if ($lead->insurance_type === null) {
-            throw ValidationException::withMessages([
-                'document_type' => 'Ce type de document n\'est pas requis pour ce lead.',
-            ]);
-        }
-
-        $required = $this->requirementService->getRequiredDocuments($lead->insurance_type, $lead->client_type);
-
-        if ($required === null) {
-            throw ValidationException::withMessages([
-                'document_type' => 'Ce type de document n\'est pas requis pour ce lead.',
-            ]);
-        }
+        [$required] = $this->requiredFor($lead);
 
         $requiredNames = array_column($required, 'name');
         if (! in_array($type, $requiredNames)) {
@@ -118,6 +98,10 @@ class LeadDocumentService
             'uploaded_by' => $uploader->id,
         ]);
 
+        if ($type === DocumentTypeEnum::DVC->value) {
+            $this->dvcStatus->refresh($lead);
+        }
+
         return $document;
     }
 
@@ -125,6 +109,10 @@ class LeadDocumentService
     {
         Storage::disk('local')->delete($document->file_path);
         $this->repository->delete($document->id);
+
+        if ($document->document_type === DocumentTypeEnum::DVC->value) {
+            $this->dvcStatus->refresh($document->lead);
+        }
     }
 
     public function downloadDocument(LeadDocument $document): StreamedResponse

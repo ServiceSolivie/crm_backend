@@ -14,6 +14,8 @@ class AppointmentResource extends BaseResource
         return [
             'id' => $this->id,
             'scheduled_at' => $this->formatDate($this->scheduled_at),
+            'duration_minutes' => (int) ($this->duration_minutes ?? 30),
+            'ends_at' => $this->formatDate($this->scheduled_at?->copy()->addMinutes((int) ($this->duration_minutes ?? 30))),
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'location' => $this->location,
@@ -25,6 +27,8 @@ class AppointmentResource extends BaseResource
                 'last_name' => $this->lead->last_name,
                 'phone' => $this->lead->phone,
                 'insurance_type' => $this->lead->insurance_type?->value,
+                'status' => $this->lead->status?->value,
+                'status_label' => $this->lead->status?->label(),
             ]),
             'agent' => $this->whenLoaded('agent', fn () => [
                 'id' => $this->agent->id,
