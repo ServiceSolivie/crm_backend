@@ -19,16 +19,11 @@ Route::middleware(['auth:sanctum', 'active'])->prefix('leads')->name('leads.')->
     Route::post('/{lead}/cross-sell', [LeadController::class, 'crossSell'])->name('cross-sell');
     Route::patch('/{lead}/status', [LeadController::class, 'updateStatus'])->name('update-status');
 
-    Route::get('/{lead}/notes', [LeadController::class, 'notes'])->name('notes.index');
     Route::post('/{lead}/notes', [LeadController::class, 'storeNote'])->name('notes.store');
-
-    Route::get('/{lead}/calls', [LeadController::class, 'calls'])->name('calls.index');
     Route::post('/{lead}/calls', [LeadController::class, 'storeCall'])->name('calls.store');
 
     Route::get('/{lead}/activity', [LeadController::class, 'activity'])->name('activity');
     Route::get('/{lead}/neighbours', [LeadController::class, 'neighbours'])->name('neighbours');
-    Route::get('/{lead}/status-history', [LeadController::class, 'statusHistory'])->name('status-history');
-    Route::get('/{lead}/assignment-history', [LeadController::class, 'assignmentHistory'])->name('assignment-history');
 
     Route::get('/{lead}/appointments', [LeadAppointmentController::class, 'index'])->name('appointments.index');
     Route::post('/{lead}/appointments', [LeadAppointmentController::class, 'store'])->name('appointments.store');

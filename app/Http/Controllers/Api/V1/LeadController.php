@@ -13,11 +13,9 @@ use App\Http\Requests\Lead\StoreLeadNoteRequest;
 use App\Http\Requests\Lead\StoreLeadRequest;
 use App\Http\Requests\Lead\UpdateLeadRequest;
 use App\Http\Requests\Lead\UpdateLeadStatusRequest;
-use App\Http\Resources\LeadAssignmentHistoryResource;
 use App\Http\Resources\LeadCallResource;
 use App\Http\Resources\LeadNoteResource;
 use App\Http\Resources\LeadResource;
-use App\Http\Resources\LeadStatusHistoryResource;
 use App\Models\Lead;
 use App\Services\LeadService;
 use App\Services\LeadWorkspaceService;
@@ -223,15 +221,6 @@ class LeadController extends Controller
         return $this->success(new LeadResource($lead), 'Statut du lead mis à jour avec succès');
     }
 
-    public function notes(Request $request, Lead $lead): JsonResponse
-    {
-        $this->authorize('manageNotes', $lead);
-
-        $notes = $this->leadService->notes($lead, (int) $request->integer('per_page', 15));
-
-        return $this->success(LeadNoteResource::collection($notes));
-    }
-
     public function storeNote(StoreLeadNoteRequest $request, Lead $lead): JsonResponse
     {
         $this->authorize('manageNotes', $lead);
@@ -241,15 +230,6 @@ class LeadController extends Controller
         $note->load('user');
 
         return $this->created(new LeadNoteResource($note), 'Note added successfully');
-    }
-
-    public function calls(Request $request, Lead $lead): JsonResponse
-    {
-        $this->authorize('manageCalls', $lead);
-
-        $calls = $this->leadService->calls($lead, (int) $request->integer('per_page', 15));
-
-        return $this->success(LeadCallResource::collection($calls));
     }
 
     public function storeCall(StoreLeadCallRequest $request, Lead $lead): JsonResponse
@@ -268,21 +248,4 @@ class LeadController extends Controller
         return $this->created(new LeadCallResource($call), 'Call logged successfully');
     }
 
-    public function statusHistory(Request $request, Lead $lead): JsonResponse
-    {
-        $this->authorize('viewHistory', $lead);
-
-        $history = $this->leadService->statusHistory($lead, (int) $request->integer('per_page', 15));
-
-        return $this->success(LeadStatusHistoryResource::collection($history));
-    }
-
-    public function assignmentHistory(Request $request, Lead $lead): JsonResponse
-    {
-        $this->authorize('viewHistory', $lead);
-
-        $history = $this->leadService->assignmentHistory($lead, (int) $request->integer('per_page', 15));
-
-        return $this->success(LeadAssignmentHistoryResource::collection($history));
-    }
 }

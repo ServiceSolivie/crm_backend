@@ -21,16 +21,6 @@ class GoogleSheetsService
         $this->spreadsheetId = config('services.google.sheet_id');
     }
 
-    public function getSheetNames(): array
-    {
-        $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
-
-        return array_map(
-            fn ($sheet) => $sheet->getProperties()->getTitle(),
-            $spreadsheet->getSheets()
-        );
-    }
-
     public function getRows(string $sheetName, int $startRow = 1, ?int $endRow = null): array
     {
         if ($endRow) {
@@ -44,21 +34,4 @@ class GoogleSheetsService
         return $response->getValues() ?? [];
     }
 
-    public function getDateColumn(string $sheetName, string $colLetter): array
-    {
-        $range = "'{$sheetName}'!{$colLetter}2:{$colLetter}";
-        $response = $this->sheets->spreadsheets_values->get($this->spreadsheetId, $range);
-
-        return array_map(fn ($row) => $row[0] ?? '', $response->getValues() ?? []);
-    }
-
-    public function getRowCount(string $sheetName): int
-    {
-        $response = $this->sheets->spreadsheets_values->get(
-            $this->spreadsheetId,
-            "'{$sheetName}'!A:A"
-        );
-
-        return count($response->getValues() ?? []);
-    }
 }
