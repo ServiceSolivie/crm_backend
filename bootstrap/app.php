@@ -91,11 +91,8 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
-        // 15-minute google:sync-leads polling removed — leads now come in
-        // live via the webhook (app/Services/GoogleSheetLeadImporter::
-        // importFromWebhookPayload()), with the super_admin-only "Sync from
-        // Google Sheets" button (LeadImportController::syncFromGoogleSheets())
-        // for a one-time baseline seed instead of continuous polling.
+        // Leads arrive live through the Google Sheets webhook
+        // (GoogleSheetLeadImporter::importFromWebhookPayload()); nothing polls the sheets.
         $schedule->command('appointments:send-today-reminders')->dailyAt('07:00');
         $schedule->command('appointments:send-due-reminders')->everyMinute()->withoutOverlapping();
     })

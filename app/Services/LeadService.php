@@ -339,11 +339,6 @@ class LeadService extends BaseService
         ]);
     }
 
-    public function notes(Lead $lead, int $perPage = 15): LengthAwarePaginator
-    {
-        return $lead->notes()->with('user')->paginate($perPage);
-    }
-
     public function logCall(Lead $lead, User $user, ?string $outcome = null, ?string $note = null): LeadCall
     {
         return $lead->calls()->create([
@@ -351,21 +346,6 @@ class LeadService extends BaseService
             'outcome' => $outcome,
             'note' => $note,
         ]);
-    }
-
-    public function calls(Lead $lead, int $perPage = 15): LengthAwarePaginator
-    {
-        return $lead->calls()->with('user')->paginate($perPage);
-    }
-
-    public function statusHistory(Lead $lead, int $perPage = 15): LengthAwarePaginator
-    {
-        return $lead->statusHistories()->with('changedBy')->paginate($perPage);
-    }
-
-    public function assignmentHistory(Lead $lead, int $perPage = 15): LengthAwarePaginator
-    {
-        return $lead->assignmentHistories()->with(['fromUser', 'toUser', 'assignedBy'])->paginate($perPage);
     }
 
     /**

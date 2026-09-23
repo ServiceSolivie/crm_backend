@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
-use App\Models\GoogleSheetSyncLog;
 use App\Models\Lead;
 use App\Models\LeadSource;
 use App\Models\User;
@@ -105,81 +104,9 @@ class GoogleSheetLeadImporter
         protected LeadService $leadService,
     ) {}
 
-    public function import(string $sheetName, ?string $dateFilter = null, ?int $fromRow = null): GoogleSheetSyncLog
-    {
-        $columns = self::SHEET_COLUMNS[$sheetName] ?? null;
-
-        if (! $columns) {
-            throw new \InvalidArgumentException("Unknown sheet: {$sheetName}. Supported: ".implode(', ', array_keys(self::SHEET_COLUMNS)));
-        }
-
-        $log = GoogleSheetSyncLog::create([
-            'sheet_name' => $sheetName,
-            'started_at' => now(),
-        ]);
-
-        if ($dateFilter && isset($columns['date'])) {
-            [$startRow, $endRow] = $this->findDateRange($sheetName, $columns['date'], $dateFilter);
-            if (! $startRow) {
-                $log->update([
-                    'total_rows' => 0, 'imported' => 0, 'skipped' => 0, 'failed' => 0,
-                    'last_row_synced' => 0, 'completed_at' => now(),
-                ]);
-
-                return $log->refresh();
-            }
-            $rows = $this->sheetsService->getRows($sheetName, $startRow, $endRow);
-        } else {
-            $startRow = $fromRow ?? $this->getLastSyncedRow($sheetName) + 1;
-            if ($startRow < 2) {
-                $startRow = 2;
-            }
-            $rows = $this->sheetsService->getRows($sheetName, $startRow);
-        }
-
-        $imported = 0;
-        $skipped = 0;
-        $failed = 0;
-        $errors = [];
-        $lastRow = $startRow - 1;
-
-        $systemUser = User::where('email', 'akkaoui@crm.test')->first()
-            ?? User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->first();
-
-        foreach ($rows as $index => $row) {
-            $rowNumber = $startRow + $index;
-            $lastRow = $rowNumber;
-
-            try {
-                $parsed = $this->parseRow($row, $columns);
-
-                if ($this->processParsedRow($parsed, $systemUser) === 'imported') {
-                    $imported++;
-                } else {
-                    $skipped++;
-                }
-            } catch (\Throwable $e) {
-                $failed++;
-                $errors[] = ['row' => $rowNumber, 'error' => $e->getMessage()];
-            }
-        }
-
-        $log->update([
-            'total_rows' => count($rows),
-            'imported' => $imported,
-            'skipped' => $skipped,
-            'failed' => $failed,
-            'last_row_synced' => $lastRow,
-            'completed_at' => now(),
-            'error_details' => $errors ?: null,
-        ]);
-
-        return $log->refresh();
-    }
-
     /**
      * One-time bulk seed: mirrors a sheet's CURRENT full state into the CRM
-     * as a starting baseline. Unlike import()/processParsedRow(), this
+     * as a starting baseline. Unlike the webhook, this
      * ignores the `doublon` flag entirely, skips any row with no agent in
      * the sheet, and skips anything already in the CRM (pure additive
      * seeding — never updates or reassigns an existing lead).
@@ -280,8 +207,8 @@ class GoogleSheetLeadImporter
     protected const ENVELOPE_NOISE_KEYS = ['spreadsheet_id', 'spreadsheet_name', 'sent_at'];
 
     /**
-     * Ingest a single webhook call from the Apps Script. Unlike the polling
-     * import() (which reads a fixed column position per sheet), this works
+     * Ingest a single webhook call from the Apps Script. Unlike the baseline
+     * seed (which reads a fixed column position per sheet), this works
      * from an arbitrary flat JSON object: known fields (via the alias map
      * above) are mapped to real Lead columns. Anything left over — a field
      * without a dedicated column yet (currently_insured, plate, etc.) — is
@@ -366,6 +293,25 @@ class GoogleSheetLeadImporter
         // Either a brand-new contact, or an existing one now claimed by a
         // DIFFERENT agent — both create a fresh Lead row. The prior agent's
         // own lead (if any) is never touched.
+
+        // Only actually create when the payload signals a genuine new
+        // submission - either the sheet explicitly says so (action: "new"),
+        // or it carries enough real content to be worth a row on its own.
+        // A bare {sheet, row, agent, phone} call for a row we've never seen
+        // is almost always a field-only edit (agent column filled in) on a
+        // row whose real creation call we missed or that hasn't arrived yet
+        // - creating a nameless lead for it just produces junk data.
+        $isDeclaredNew = ($payload['action'] ?? null) === 'new';
+        $hasMinimalContent = (bool) ($name['first_name'] || $name['last_name'] || $email);
+
+        if (! $isDeclaredNew && ! $hasMinimalContent) {
+            Log::info('google_sheets_webhook: creation skipped - no creation signal and insufficient content', [
+                'payload' => $payload,
+            ]);
+
+            return ['status' => 'skipped_incomplete'];
+        }
+
         $systemUser = User::where('email', 'akkaoui@crm.test')->first()
             ?? User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->first();
 
@@ -546,84 +492,6 @@ class GoogleSheetLeadImporter
         $decoded = json_decode($comment, true);
 
         return is_array($decoded) ? $decoded : [];
-    }
-
-    /**
-     * Shared skip/dedupe/assign/create logic for a single already-parsed
-     * row, used by both the polling import() loop and importFromWebhook().
-     *
-     * @return string 'imported'|'skipped'
-     */
-    protected function processParsedRow(array $parsed, ?User $systemUser): string
-    {
-        if (strcasecmp(trim($parsed['doublon'] ?? ''), 'DOUBLON') === 0) {
-            return 'skipped';
-        }
-
-        if (! $parsed['phone'] && ! $parsed['email']) {
-            return 'skipped';
-        }
-
-        $existing = $this->findExisting($parsed['phone'], $parsed['email']);
-
-        if ($existing) {
-            $agentId = $this->resolveAgent($parsed['agent']);
-            $updates = $this->extraFieldUpdates($parsed, $existing);
-
-            if ($updates) {
-                $existing->update($updates);
-            }
-
-            if ($agentId && $agentId !== $existing->assigned_to) {
-                $this->leadService->assign($existing, $agentId);
-
-                return 'imported';
-            }
-
-            return $updates ? 'imported' : 'skipped';
-        }
-
-        $leadData = $this->buildLeadData($parsed);
-        $this->leadService->createLead($leadData, $systemUser);
-
-        return 'imported';
-    }
-
-    protected function findDateRange(string $sheetName, int $dateCol, string $targetDate): array
-    {
-        $colLetter = chr(ord('A') + $dateCol);
-        $dateValues = $this->sheetsService->getDateColumn($sheetName, $colLetter);
-
-        $target = Carbon::parse($targetDate)->format('n/j/Y');
-        $firstRow = null;
-        $lastRow = null;
-
-        foreach ($dateValues as $index => $val) {
-            $rowNumber = 2 + $index;
-            $dateStr = trim($val);
-
-            if (! $dateStr) {
-                continue;
-            }
-
-            if (str_starts_with($dateStr, $target)) {
-                if ($firstRow === null) {
-                    $firstRow = $rowNumber;
-                }
-                $lastRow = $rowNumber;
-            } elseif ($lastRow !== null) {
-                $parsed = $this->parseDate($dateStr);
-                if ($parsed && $parsed->format('Y-m-d') > $targetDate) {
-                    break;
-                }
-            }
-        }
-
-        if (! $firstRow || ! $lastRow) {
-            return [null, null];
-        }
-
-        return [$firstRow, $lastRow];
     }
 
     protected function parseRow(array $row, array $columns): array
@@ -816,41 +684,6 @@ class GoogleSheetLeadImporter
     }
 
     /**
-     * When a sheet row matches an already-imported lead, patch in any new
-     * non-empty structured data instead of leaving the lead frozen at
-     * whatever was captured on first import.
-     *
-     * @return array<string, mixed>
-     */
-    protected function extraFieldUpdates(array $parsed, ?Lead $existing = null): array
-    {
-        $updates = array_filter([
-            'address' => $parsed['address'] ?: null,
-            'company_status' => $parsed['status'] ?: null,
-            'company_legal_form' => $parsed['legal_form'] ?: null,
-            'company_sector' => $parsed['sector'] ?: null,
-            'company_employee_count' => $parsed['employee_count'] ?: null,
-            'company_name' => $parsed['company_name'] ?: null,
-            'company_annual_revenue' => $parsed['annual_revenue'] ?: null,
-        ], fn ($value) => $value !== null);
-
-        if ($parsed['insurance_type'] === 'DECENNALE' && $parsed['client_type_source']) {
-            $updates['client_type'] = $this->mapClientType($parsed['client_type_source']);
-        }
-
-        // The submission date is when the lead first entered the sheet — it
-        // shouldn't move just because the lead was later reassigned/updated.
-        if ($existing && ! $existing->lead_submitted_at && $parsed['date']) {
-            $submittedAt = $this->parseDate($parsed['date']);
-            if ($submittedAt) {
-                $updates['lead_submitted_at'] = $submittedAt;
-            }
-        }
-
-        return $updates;
-    }
-
-    /**
      * Fields with no dedicated Lead column (the Detailles sheet's qualifying
      * questions) get folded into the free-text comment instead.
      */
@@ -872,12 +705,5 @@ class GoogleSheetLeadImporter
         } catch (\Throwable) {
             return null;
         }
-    }
-
-    protected function getLastSyncedRow(string $sheetName): int
-    {
-        return (int) GoogleSheetSyncLog::where('sheet_name', $sheetName)
-            ->whereNotNull('completed_at')
-            ->max('last_row_synced');
     }
 }
