@@ -41,4 +41,20 @@ return [
         'webhook_secret' => env('GOOGLE_SHEETS_WEBHOOK_SECRET'),
     ],
 
+    'plane' => [
+        'base_url' => env('PLANE_BASE_URL'),
+        'api_key' => env('PLANE_API_KEY'),
+        'workspace' => env('PLANE_WORKSPACE'),
+        'project_id' => env('PLANE_PROJECT_ID'),
+        'feedback_state_id' => env('PLANE_FEEDBACK_STATE_ID'),
+        'feedback_labels' => [
+            'issue' => env('PLANE_ISSUE_LABEL_ID'),
+            'suggestion' => env('PLANE_SUGGESTION_LABEL_ID'),
+        ],
+        'payment_failure' => [
+            'state_id' => env('PLANE_PAYMENT_FAILURE_STATE_ID'),
+            'label_id' => env('PLANE_PAYMENT_LABEL_ID'),
+        ],
+    ],
+
 ];
