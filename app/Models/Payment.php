@@ -15,6 +15,7 @@ class Payment extends Model
      */
     protected $fillable = [
         'lead_id',
+        'payment_session_id',
         'amount',
         'status',
         'source',
@@ -25,6 +26,7 @@ class Payment extends Model
         'reference_number',
         'notes',
         'failure_reason',
+        'failure_code',
         'provider_payload',
         'status_changed_at',
         'status_changed_by',
@@ -55,6 +57,11 @@ class Payment extends Model
     public function lead(): BelongsTo
     {
         return $this->belongsTo(Lead::class);
+    }
+
+    public function paymentSession(): BelongsTo
+    {
+        return $this->belongsTo(PaymentSession::class);
     }
 
     public function statusChanger(): BelongsTo

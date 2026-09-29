@@ -9,6 +9,7 @@ use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PaymentStatusEnum;
+use App\Repositories\Contracts\PaymentRepositoryInterface;
 use App\Traits\Filterable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -171,6 +172,11 @@ class Lead extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function paymentSessions(): HasMany
+    {
+        return $this->hasMany(PaymentSession::class);
+    }
+
     public function documents(): HasMany
     {
         return $this->hasMany(LeadDocument::class);
@@ -182,7 +188,9 @@ class Lead extends Model
      */
     public function getTotalReceivedAttribute(): string
     {
-        return (string) ($this->payments()->where('status', PaymentRecordStatusEnum::REUSSI->value)->sum('amount') ?: '0.00');
+        $received = app(PaymentRepositoryInterface::class)->sumForLead($this->id, [PaymentRecordStatusEnum::REUSSI]);
+
+        return bcadd($received, '0', 2);
     }
 
     public function getRemainingAmountAttribute(): string

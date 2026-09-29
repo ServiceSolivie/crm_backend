@@ -6,10 +6,9 @@ use App\Enums\Concerns\EnumHelpers;
 use App\Enums\Contracts\HasLabel;
 
 /**
- * Status of one payment. Set by hand today (agent / gestion); later the
- * Hyperswitch webhook maps its events onto the same values:
- *   succeeded → REUSSI, processing / requires_* → EN_ATTENTE,
- *   failed → ECHOUE, cancelled → ANNULE, refund succeeded → REMBOURSE.
+ * Status of one payment. Payments come from Hyperswitch: the CRM pulls the
+ * status (PaymentSyncService::syncFromProvider) and maps it with
+ * fromProvider(). Older payments were entered by hand.
  *
  * Only REUSSI counts as money received.
  */
@@ -23,6 +22,22 @@ enum PaymentRecordStatusEnum: string implements HasLabel
     case ANNULE = 'ANNULE';
     case REMBOURSE = 'REMBOURSE';
 
+    /**
+     * Payment status for a Hyperswitch payment status. Null = no payment
+     * to record (the client hasn't paid yet, or the link expired unused).
+     */
+    public static function fromProvider(?string $providerStatus): ?self
+    {
+        return match ($providerStatus) {
+            // Only "succeeded" is money received (integration doc §6/§7)
+            'succeeded' => self::REUSSI,
+            'processing', 'pending' => self::EN_ATTENTE,
+            'failed' => self::ECHOUE,
+            'cancelled' => self::ANNULE,
+            default => null,
+        };
+    }
+
     public function label(): string
     {
         return match ($this) {
@@ -31,20 +46,6 @@ enum PaymentRecordStatusEnum: string implements HasLabel
             self::ECHOUE => 'Échoué',
             self::ANNULE => 'Annulé',
             self::REMBOURSE => 'Remboursé',
-        };
-    }
-
-    /**
-     * Statuses a payment can move to by hand from this one.
-     *
-     * @return array<int, self>
-     */
-    public function allowedTransitions(): array
-    {
-        return match ($this) {
-            self::EN_ATTENTE => [self::REUSSI, self::ECHOUE, self::ANNULE],
-            self::REUSSI => [self::REMBOURSE],
-            self::ECHOUE, self::ANNULE, self::REMBOURSE => [],
         };
     }
 }

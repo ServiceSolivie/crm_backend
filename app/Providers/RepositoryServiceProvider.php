@@ -13,6 +13,8 @@ use App\Repositories\Contracts\LeadImportRepositoryInterface;
 use App\Repositories\Contracts\LeadRepositoryInterface;
 use App\Repositories\Contracts\LeadSourceRepositoryInterface;
 use App\Repositories\Contracts\PartnerRepositoryInterface;
+use App\Repositories\Contracts\PaymentRepositoryInterface;
+use App\Repositories\Contracts\PaymentSessionRepositoryInterface;
 use App\Repositories\Contracts\ReportRepositoryInterface;
 use App\Repositories\Contracts\TeamRepositoryInterface;
 use App\Repositories\Contracts\UserRepositoryInterface;
@@ -28,6 +30,8 @@ use App\Repositories\Eloquent\LeadImportRepository;
 use App\Repositories\Eloquent\LeadRepository;
 use App\Repositories\Eloquent\LeadSourceRepository;
 use App\Repositories\Eloquent\PartnerRepository;
+use App\Repositories\Eloquent\PaymentRepository;
+use App\Repositories\Eloquent\PaymentSessionRepository;
 use App\Repositories\Eloquent\ReportRepository;
 use App\Repositories\Eloquent\TeamRepository;
 use App\Repositories\Eloquent\UserRepository;
@@ -57,6 +61,8 @@ class RepositoryServiceProvider extends ServiceProvider
         PartnerRepositoryInterface::class => PartnerRepository::class,
         CredentialRepositoryInterface::class => CredentialRepository::class,
         VaultAuditLogRepositoryInterface::class => VaultAuditLogRepository::class,
+        PaymentRepositoryInterface::class => PaymentRepository::class,
+        PaymentSessionRepositoryInterface::class => PaymentSessionRepository::class,
     ];
 
     public function register(): void

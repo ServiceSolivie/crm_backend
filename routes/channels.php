@@ -1,7 +1,10 @@
 <?php
 
+use App\Models\Lead;
+use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Gate;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,4 +22,12 @@ use Illuminate\Support\Facades\Broadcast;
 */
 Broadcast::channel('App.Models.User.{id}', function (User $user, int $id) {
     return $user->id === $id;
+});
+
+/*
+| Lead channel: payment updates of a lead (PaymentSessionUpdated), for the
+| users who can see its payments (same rule as the payments list).
+*/
+Broadcast::channel('leads.{lead}', function (User $user, Lead $lead) {
+    return Gate::forUser($user)->allows('viewAny', [Payment::class, $lead]);
 });

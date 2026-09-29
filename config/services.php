@@ -57,4 +57,21 @@ return [
         ],
     ],
 
+    // Online payments. profile_id is the business profile (pro_…), not the
+    // connector account id (mca_…).
+    'hyperswitch' => [
+        'base_url' => env('HYPERSWITCH_BASE_URL', 'https://sandbox.hyperswitch.io'),
+        'api_key' => env('HYPERSWITCH_API_KEY'),
+        'profile_id' => env('HYPERSWITCH_PROFILE_ID'),
+        'connector' => env('HYPERSWITCH_CONNECTOR', 'sogecommerce'),
+        'currency' => env('HYPERSWITCH_CURRENCY', 'EUR'),
+        // Base URL of the CRM frontend: the client comes back to {return_url}/paiement/{token}
+        'return_url' => env('HYPERSWITCH_RETURN_URL', env('FRONTEND_URL', env('APP_URL', 'http://localhost'))),
+        // How long the result page stays readable after the client came back (minutes)
+        'result_page_ttl' => (int) env('HYPERSWITCH_RESULT_PAGE_TTL', 120),
+        // Response and connection time limits of the HTTP client (seconds)
+        'timeout' => (int) env('HYPERSWITCH_TIMEOUT', 20),
+        'connect_timeout' => (int) env('HYPERSWITCH_CONNECT_TIMEOUT', 5),
+    ],
+
 ];

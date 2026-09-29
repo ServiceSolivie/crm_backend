@@ -18,6 +18,8 @@ class PaymentResource extends BaseResource
             'status_label' => $this->status?->label(),
             'source' => $this->source?->value,
             'source_label' => $this->source?->label(),
+            // Bank code of a refusal (e.g. 51, 39), next to failure_reason
+            'failure_code' => $this->failure_code,
             'external_id' => $this->external_id,
             'failure_reason' => $this->failure_reason,
             'status_changed_at' => $this->formatDate($this->status_changed_at),

@@ -30,6 +30,11 @@ interface RepositoryInterface
     public function findOrFail(int|string $id, array $columns = ['*']): Model;
 
     /**
+     * Find a record and lock its row until the current transaction ends.
+     */
+    public function findForUpdate(int|string $id): ?Model;
+
+    /**
      * Find the first record matching a field/value pair.
      */
     public function findBy(string $field, mixed $value, array $columns = ['*']): ?Model;

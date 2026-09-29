@@ -2,17 +2,19 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\PaymentRecordStatusEnum;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Payment\StorePaymentRequest;
+use App\Http\Requests\Payment\UpdateContractTotalRequest;
 use App\Http\Resources\PaymentResource;
 use App\Models\Lead;
 use App\Models\Payment;
 use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
+/**
+ * Payments of a lead (read-only: they come from Hyperswitch, see
+ * PaymentSessionController) and its contract total.
+ */
 class PaymentController extends Controller
 {
     public function __construct(protected PaymentService $paymentService) {}
@@ -26,39 +28,26 @@ class PaymentController extends Controller
         return $this->success(PaymentResource::collection($payments));
     }
 
-    public function store(StorePaymentRequest $request, Lead $lead): JsonResponse
-    {
-        $this->authorize('create', [Payment::class, $lead]);
-
-        $payment = $this->paymentService->createPayment($lead, $request->validated(), $request->user());
-
-        return $this->created(new PaymentResource($payment), 'Paiement enregistré avec succès');
-    }
-
     /**
-     * PATCH /leads/{lead}/payments/{payment}/status { status, reason? }
+     * PATCH /leads/{lead}/contract-total { total, reason }
+     * E.g. raise the total to ask an additional payment when the contract grew.
      */
-    public function updateStatus(Request $request, Lead $lead, Payment $payment): JsonResponse
+    public function updateTotal(UpdateContractTotalRequest $request, Lead $lead): JsonResponse
     {
-        $data = $request->validate([
-            'status' => ['required', Rule::in(PaymentRecordStatusEnum::values())],
-            'reason' => ['nullable', 'string', 'max:255'],
-        ]);
-        $status = PaymentRecordStatusEnum::from($data['status']);
+        $this->authorize('updateTotal', [Payment::class, $lead]);
 
-        $this->authorize('updateStatus', [$payment, $status]);
+        $lead = $this->paymentService->updateContractTotal(
+            $lead,
+            $request->user(),
+            $request->validated('total'),
+            $request->validated('reason'),
+        );
 
-        $payment = $this->paymentService->changeStatus($payment, $status, $request->user(), $data['reason'] ?? null);
-
-        return $this->success(new PaymentResource($payment), 'Statut du paiement mis à jour');
-    }
-
-    public function destroy(Lead $lead, Payment $payment): JsonResponse
-    {
-        $this->authorize('delete', $payment);
-
-        $this->paymentService->deletePayment($payment);
-
-        return $this->noContent('Paiement supprimé avec succès');
+        return $this->success([
+            'expected_revenue' => $lead->expected_revenue,
+            'total_received' => $lead->total_received,
+            'remaining_amount' => $lead->remaining_amount,
+            'payment_status' => $lead->payment_status,
+        ], 'Montant total du contrat mis à jour');
     }
 }

@@ -71,6 +71,11 @@ abstract class BaseRepository implements RepositoryInterface
         return $this->newQuery()->findOrFail($id, $columns);
     }
 
+    public function findForUpdate(int|string $id): ?Model
+    {
+        return $this->model->newQuery()->lockForUpdate()->find($id);
+    }
+
     public function findBy(string $field, mixed $value, array $columns = ['*']): ?Model
     {
         return $this->newQuery()->where($field, $value)->first($columns);
