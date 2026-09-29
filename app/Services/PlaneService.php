@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Exceptions\ApiException;
+use App\Models\PaymentSession;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Throwable;
 
 class PlaneService
 {
@@ -88,6 +90,32 @@ class PlaneService
             'description_html' => view('plane.hyperswitch-payment-failure', [
                 'payment' => $payment,
                 'payloadJson' => $payloadJson,
+            ])->render(),
+            'state' => $state,
+            'labels' => [$label],
+        ]);
+    }
+
+    /**
+     * Create a Plane work item when a pending payment couldn't be checked
+     * with Hyperswitch before sending a new link (the agent is blocked).
+     *
+     * @return array{id: string}
+     */
+    public function reportHyperswitchCheckFailure(PaymentSession $session, Throwable $error): array
+    {
+        $state = config('services.plane.payment_failure.state_id');
+        $label = config('services.plane.payment_failure.label_id');
+
+        if (! $state || ! $label) {
+            throw new ApiException(__('messages.plane.unavailable'), 503);
+        }
+
+        return $this->createWorkItem([
+            'name' => "Paiement Hyperswitch non vérifiable · {$session->reference}",
+            'description_html' => view('plane.hyperswitch-check-failure', [
+                'session' => $session,
+                'error' => $error,
             ])->render(),
             'state' => $state,
             'labels' => [$label],

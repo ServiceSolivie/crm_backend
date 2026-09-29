@@ -23,7 +23,6 @@ class PaymentSessionResource extends BaseResource
             'hyperswitch_payment_id' => $this->hyperswitch_payment_id,
             'sent_at' => $this->formatDate($this->sent_at),
             'paid_at' => $this->formatDate($this->paid_at),
-            // Bank refusal (support): Sogecommerce code and message
             'error_code' => $this->error_code,
             'error_message' => $this->error_message,
             'lead' => $this->whenLoaded('lead', fn () => $this->lead ? [

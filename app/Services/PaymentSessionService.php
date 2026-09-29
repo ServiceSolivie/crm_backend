@@ -14,6 +14,7 @@ use App\Support\PaymentResultPage;
 use App\Support\PaymentSyncSchedule;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -183,10 +184,29 @@ class PaymentSessionService
             $this->sync->refresh($open);
         } catch (Throwable $e) {
             report($e);
+            $this->reportCheckFailureToPlane($open, $e);
 
             throw ValidationException::withMessages([
                 'session' => "Impossible de vérifier le paiement {$open->reference} auprès d'Hyperswitch pour le moment : réessayez dans quelques instants avant d'envoyer un nouveau lien.",
             ]);
+        }
+    }
+
+    /**
+     * The previous request couldn't be checked with Hyperswitch, so the
+     * agent is blocked: report it to Plane, once per payment per hour.
+     * Best effort: Plane never blocks the agent.
+     */
+    protected function reportCheckFailureToPlane(PaymentSession $session, Throwable $error): void
+    {
+        if (! Cache::add("plane:payment-check-failed:{$session->id}", true, now()->addHour())) {
+            return;
+        }
+
+        try {
+            app(PlaneService::class)->reportHyperswitchCheckFailure($session, $error);
+        } catch (Throwable $e) {
+            report($e);
         }
     }
 
