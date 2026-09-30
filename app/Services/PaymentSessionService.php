@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\PaymentSessionStatusEnum;
 use App\Exceptions\ApiException;
 use App\Exceptions\HyperswitchUncertainException;
+use App\Filters\PaymentSessionFilter;
 use App\Models\Lead;
 use App\Models\PaymentSession;
 use App\Models\User;
@@ -53,10 +54,8 @@ class PaymentSessionService
 
     /**
      * Payment links of every lead the user can see (Payments page).
-     *
-     * @param  array{search?: string, status?: string, lead_id?: int|string}  $filters
      */
-    public function paginateForUser(User $user, array $filters, int $perPage = 15): LengthAwarePaginator
+    public function paginateForUser(User $user, PaymentSessionFilter $filters, int $perPage = 15): LengthAwarePaginator
     {
         return $this->sessions->paginateScoped($filters, $perPage, $this->leadService->visibilityScope($user));
     }
@@ -102,6 +101,7 @@ class PaymentSessionService
             'hyperswitch_payment_id' => $result['payment_id'],
             'merchant_connector_id' => $result['merchant_connector_id'],
             'payment_url' => $result['payment_url'],
+            'expires_at' => $result['expires_at'],
             'provider_status' => $result['status'],
             'error_code' => $result['error_code'],
             'error_message' => $result['error_message'],

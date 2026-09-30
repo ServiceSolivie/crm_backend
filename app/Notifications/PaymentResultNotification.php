@@ -8,7 +8,7 @@ use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Result of a payment link (paid or failed), for the agent who sent it and
+ * Result of a payment link (paid, failed or expired), for the agent who sent it and
  * the lead's assigned agent. Uses the `leads` payload key so the bell's
  * click-through opens the lead (see LeadReceivedNotification).
  */
@@ -30,10 +30,14 @@ class PaymentResultNotification extends Notification
     public function toArray(object $notifiable): array
     {
         $lead = $this->session->lead;
-        $paid = $this->session->status === PaymentSessionStatusEnum::PAYEE;
+        $title = match ($this->session->status) {
+            PaymentSessionStatusEnum::PAYEE => 'Payment received',
+            PaymentSessionStatusEnum::EXPIREE => 'Payment link expired',
+            default => 'Payment failed',
+        };
 
         return [
-            'title' => ($paid ? 'Payment received' : 'Payment failed').' — '.$this->session->reference,
+            'title' => $title.' — '.$this->session->reference,
             'leads' => [[
                 'id' => $lead->id,
                 'name' => trim(($lead->first_name ?? '').' '.($lead->last_name ?? '')) ?: null,

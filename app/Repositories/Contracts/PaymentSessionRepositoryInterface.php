@@ -2,6 +2,7 @@
 
 namespace App\Repositories\Contracts;
 
+use App\Filters\PaymentSessionFilter;
 use App\Models\PaymentSession;
 use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -10,12 +11,11 @@ use Illuminate\Database\Eloquent\Collection;
 interface PaymentSessionRepositoryInterface extends RepositoryInterface
 {
     /**
-     * All sessions, newest first, with their lead and creator. $leadScope
-     * narrows them to the leads the user may see (applied on the lead).
-     *
-     * @param  array{search?: string, status?: string, lead_id?: int|string}  $filters
+     * All sessions matching the Payments page filters (newest first unless
+     * sorted), with their lead and creator. $leadScope narrows them to the
+     * leads the user may see (applied on the lead).
      */
-    public function paginateScoped(array $filters, int $perPage = 15, ?Closure $leadScope = null): LengthAwarePaginator;
+    public function paginateScoped(PaymentSessionFilter $filters, int $perPage = 15, ?Closure $leadScope = null): LengthAwarePaginator;
 
     /**
      * Sessions of a lead, newest first, with their creator.
