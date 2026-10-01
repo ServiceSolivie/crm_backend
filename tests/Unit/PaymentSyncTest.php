@@ -78,6 +78,28 @@ class PaymentSyncTest extends TestCase
         $this->assertNull(PaymentSyncSchedule::nextNormalDelay($created, $created->copy()->addMinutes(10)));
     }
 
+    public function test_one_forced_check_just_after_the_link_expiry(): void
+    {
+        $expires = Carbon::parse('2026-09-29 23:45:21');
+
+        // Before: the check is planned 60 s after the expiry
+        $this->assertSame('23:46:21', PaymentSyncSchedule::nextExpiryCheck($expires, 'requires_customer_action', $expires->copy()->subMinutes(5))->format('H:i:s'));
+        $this->assertFalse(PaymentSyncSchedule::isPastExpiry($expires, $expires->copy()->addSeconds(59)));
+        $this->assertTrue(PaymentSyncSchedule::isPastExpiry($expires, $expires->copy()->addSeconds(60)));
+        $this->assertFalse(PaymentSyncSchedule::isPastExpiry(null, $expires));
+
+        // Past it with no verified answer: a few retries (1 min), then stop
+        $this->assertSame('23:47:21', PaymentSyncSchedule::nextExpiryCheck($expires, 'requires_customer_action', $expires->copy()->addSeconds(60))->format('H:i:s'));
+        $this->assertNull(PaymentSyncSchedule::nextExpiryCheck($expires, 'requires_customer_action', $expires->copy()->addMinutes(5)));
+
+        // Being processed at expiry: every 5 min, for 1 h
+        $this->assertSame('23:51:21', PaymentSyncSchedule::nextExpiryCheck($expires, 'processing', $expires->copy()->addSeconds(60))->format('H:i:s'));
+        $this->assertNull(PaymentSyncSchedule::nextExpiryCheck($expires, 'processing', $expires->copy()->addMinutes(62)));
+
+        // Unknown expiry: nothing planned
+        $this->assertNull(PaymentSyncSchedule::nextExpiryCheck(null, 'requires_customer_action', $expires));
+    }
+
     public function test_result_page_token_is_random_and_only_its_hash_is_stored(): void
     {
         $a = PaymentResultPage::generateToken();

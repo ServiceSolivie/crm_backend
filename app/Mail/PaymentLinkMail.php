@@ -21,13 +21,17 @@ class PaymentLinkMail extends Mailable
         $lead = $this->session->lead;
         $clientName = trim(($lead->first_name ?? '').' '.($lead->last_name ?? ''));
 
+        $data = [
+            'session' => $this->session,
+            'clientName' => $clientName,
+            'amount' => number_format((float) $this->session->amount, 2, ',', ' ').' €',
+            'companyName' => config('app.name'),
+        ];
+
+        // HTML + plain-text version: mail providers trust multipart e-mails more
         return $this
             ->subject("Votre lien de paiement — {$this->session->reference}")
-            ->view('mail.payment-link', [
-                'session' => $this->session,
-                'clientName' => $clientName,
-                'amount' => number_format((float) $this->session->amount, 2, ',', ' ').' €',
-                'companyName' => config('app.name'),
-            ]);
+            ->view('mail.payment-link', $data)
+            ->text('mail.payment-link-text', $data);
     }
 }

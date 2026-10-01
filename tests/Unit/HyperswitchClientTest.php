@@ -112,9 +112,31 @@ class HyperswitchClientTest extends TestCase
 
     public function test_client_secret_is_never_stored(): void
     {
-        $stored = HyperswitchClient::withoutSecrets(['payment_id' => 'pay_1', 'client_secret' => 'pay_1_secret_x']);
+        $stored = HyperswitchClient::withoutSecrets([
+            'payment_id' => 'pay_1',
+            'client_secret' => 'pay_1_secret_x',
+            // Base64 of "…,client_secret=pay_1_secret_x,…"
+            'sdk_authorization' => 'cHJvZmlsZV9pZD1wcm9fMSxjbGllbnRfc2VjcmV0PXBheV8xX3NlY3JldF94',
+        ]);
 
         $this->assertSame(['payment_id' => 'pay_1'], $stored);
+    }
+
+    public function test_link_expiry_is_read_from_expires_on(): void
+    {
+        $this->assertSame('2026-09-29 23:45:21', HyperswitchClient::expiresAtOf(['expires_on' => '2026-09-29T23:45:21.982Z'])->format('Y-m-d H:i:s'));
+        $this->assertNull(HyperswitchClient::expiresAtOf([]));
+        $this->assertNull(HyperswitchClient::expiresAtOf(['expires_on' => 'not a date']));
+    }
+
+    public function test_unused_link_is_recognised_by_psp_010_without_transaction(): void
+    {
+        // force_sync on PAY-33509-1, never paid: Sogecommerce has no transaction
+        $this->assertTrue(HyperswitchClient::neverAttempted(['status' => 'failed', 'error_code' => 'PSP_010', 'connector_transaction_id' => null]));
+        // A real refusal: bank code and / or a transaction at Sogecommerce
+        $this->assertFalse(HyperswitchClient::neverAttempted(['status' => 'failed', 'error_code' => '51', 'connector_transaction_id' => null]));
+        $this->assertFalse(HyperswitchClient::neverAttempted(['status' => 'failed', 'error_code' => 'PSP_010', 'connector_transaction_id' => 'uuid-1']));
+        $this->assertFalse(HyperswitchClient::neverAttempted(['status' => 'requires_customer_action']));
     }
 
     public function test_client_without_key_or_profile_is_not_configured(): void

@@ -67,7 +67,7 @@ abstract class QueryFilter
     protected function isInternal(string $method): bool
     {
         return str_starts_with($method, 'sortBy')
-            || in_array($method, ['apply', 'filters', 'applySort', 'sortable', 'values', 'whereIn', 'isInternal'], true);
+            || in_array($method, ['apply', 'filters', 'applySort', 'sortable', 'values', 'whereIn', 'isInternal', 'isDate'], true);
     }
 
     /**

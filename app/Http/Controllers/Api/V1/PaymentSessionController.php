@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\PaymentSessionStatusEnum;
+use App\Filters\PaymentSessionFilter;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payment\StorePaymentSessionRequest;
 use App\Http\Resources\PaymentSessionResource;
@@ -21,15 +22,15 @@ class PaymentSessionController extends Controller
     public function __construct(protected PaymentSessionService $sessionService) {}
 
     /**
-     * GET /payment-sessions?search=&status=&page=&per_page= — Payments page
+     * GET /payment-sessions — Payments page (filters: PaymentSessionFilter)
      */
-    public function all(Request $request): JsonResponse
+    public function all(Request $request, PaymentSessionFilter $filters): JsonResponse
     {
         $this->authorize('viewList', Payment::class);
 
         $sessions = $this->sessionService->paginateForUser(
             $request->user(),
-            $request->only(['search', 'status', 'lead_id']),
+            $filters,
             min(100, max(1, (int) $request->integer('per_page', 15))),
         );
 

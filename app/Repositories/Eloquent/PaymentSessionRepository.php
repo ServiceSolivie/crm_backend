@@ -3,6 +3,7 @@
 namespace App\Repositories\Eloquent;
 
 use App\Enums\PaymentSessionStatusEnum;
+use App\Filters\PaymentSessionFilter;
 use App\Models\PaymentSession;
 use App\Repositories\Contracts\PaymentSessionRepositoryInterface;
 use Closure;
@@ -16,38 +17,14 @@ class PaymentSessionRepository extends BaseRepository implements PaymentSessionR
         return PaymentSession::class;
     }
 
-    public function paginateScoped(array $filters, int $perPage = 15, ?Closure $leadScope = null): LengthAwarePaginator
+    public function paginateScoped(PaymentSessionFilter $filters, int $perPage = 15, ?Closure $leadScope = null): LengthAwarePaginator
     {
-        $query = $this->newQuery()
+        return $this->newQuery()
             ->with(['lead:id,reference,first_name,last_name', 'creator:id,name'])
-            ->latest('id');
-
-        if ($leadScope) {
-            $query->whereHas('lead', $leadScope);
-        }
-
-        if (! empty($filters['search'])) {
-            $search = trim($filters['search']);
-            $query->where(function ($q) use ($search) {
-                $q->where('reference', 'like', "%{$search}%")
-                    ->orWhere('client_email', 'like', "%{$search}%")
-                    ->orWhere('hyperswitch_payment_id', 'like', "%{$search}%")
-                    ->orWhereHas('lead', fn ($lead) => $lead
-                        ->where('reference', 'like', "%{$search}%")
-                        ->orWhere('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%"));
-            });
-        }
-
-        if (! empty($filters['status'])) {
-            $query->where('status', $filters['status']);
-        }
-
-        if (! empty($filters['lead_id'])) {
-            $query->where('lead_id', $filters['lead_id']);
-        }
-
-        return $query->paginate($perPage);
+            ->when($leadScope, fn ($query) => $query->whereHas('lead', $leadScope))
+            ->filter($filters)
+            ->latest('id')
+            ->paginate($perPage);
     }
 
     public function listForLead(int $leadId): Collection

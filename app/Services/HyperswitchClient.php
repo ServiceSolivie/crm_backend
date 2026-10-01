@@ -5,9 +5,11 @@ namespace App\Services;
 use App\Exceptions\ApiException;
 use App\Exceptions\HyperswitchUncertainException;
 use App\Support\PaymentResultPage;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -30,6 +32,9 @@ use Illuminate\Support\Str;
  */
 class HyperswitchClient
 {
+    /** Sogecommerce error code: no transaction for this payment */
+    public const TRANSACTION_NOT_FOUND = 'PSP_010';
+
     public function __construct(
         protected string $baseUrl,
         protected ?string $apiKey,
@@ -89,7 +94,7 @@ class HyperswitchClient
      * or "failed" (created but refused by the connector, no link).
      *
      * @param  array<string, mixed>  $metadata
-     * @return array{payment_id: string, status: ?string, payment_url: ?string, connector: ?string, merchant_connector_id: ?string, error_code: ?string, error_message: ?string, payload: array<string, mixed>}
+     * @return array{payment_id: string, status: ?string, payment_url: ?string, connector: ?string, merchant_connector_id: ?string, expires_at: ?CarbonInterface, error_code: ?string, error_message: ?string, payload: array<string, mixed>}
      *
      * @throws ApiException|HyperswitchUncertainException
      */
@@ -115,6 +120,7 @@ class HyperswitchClient
             'payment_url' => $url,
             'connector' => $body['connector'] ?? null,
             'merchant_connector_id' => $body['merchant_connector_id'] ?? null,
+            'expires_at' => self::expiresAtOf($body),
             ...self::errorOf($body),
             'payload' => self::withoutSecrets($body),
         ];
@@ -222,17 +228,44 @@ class HyperswitchClient
     }
 
     /**
-     * The response carries a client_secret that can confirm the payment:
-     * never store it.
+     * The response carries a client_secret that can confirm the payment,
+     * also inside sdk_authorization (Base64 with the client_secret and the
+     * publishable key): never store them.
      *
      * @param  array<string, mixed>  $response
      * @return array<string, mixed>
      */
     public static function withoutSecrets(array $response): array
     {
-        unset($response['client_secret']);
+        unset($response['client_secret'], $response['sdk_authorization']);
 
         return $response;
+    }
+
+    /**
+     * When the payment link expires ("expires_on", 15 min after creation by
+     * default), or null if absent / unreadable.
+     *
+     * @param  array<string, mixed>  $response
+     */
+    public static function expiresAtOf(array $response): ?CarbonInterface
+    {
+        $value = $response['expires_on'] ?? null;
+
+        return is_string($value) && strtotime($value) !== false ? Carbon::parse($value) : null;
+    }
+
+    /**
+     * Sogecommerce has no transaction for this payment: the client never
+     * validated a card (answer of a force_sync on an unused link).
+     *
+     * @param  array<string, mixed>  $response
+     */
+    public static function neverAttempted(array $response): bool
+    {
+        return ($response['status'] ?? null) === 'failed'
+            && ($response['error_code'] ?? null) === self::TRANSACTION_NOT_FOUND
+            && empty($response['connector_transaction_id']);
     }
 
     /**

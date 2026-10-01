@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use App\Enums\PaymentSessionStatusEnum;
+use App\Traits\Filterable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PaymentSession extends Model
 {
+    use Filterable;
+
     /**
      * @var list<string>
      */
@@ -30,6 +33,7 @@ class PaymentSession extends Model
         'sent_at',
         'returned_at',
         'paid_at',
+        'expires_at',
         'last_synced_at',
         'last_forced_sync_at',
         'next_sync_at',
@@ -55,6 +59,7 @@ class PaymentSession extends Model
             'sent_at' => 'datetime',
             'returned_at' => 'datetime',
             'paid_at' => 'datetime',
+            'expires_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'last_forced_sync_at' => 'datetime',
             'next_sync_at' => 'datetime',

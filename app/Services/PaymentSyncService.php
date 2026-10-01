@@ -28,7 +28,8 @@ use Throwable;
  *  3. the scheduled job (syncDueSessions, every 15 s).
  * Client back: a normal read, then one forced sync (Sogecommerce) 30 s
  * later. Client not back: normal reads every 15 s during the first 10
- * minutes. Then nothing more (PaymentSyncSchedule).
+ * minutes. Then one forced check just after the link's expiry (15 min),
+ * which closes it: paid, refused, or EXPIREE (PaymentSyncSchedule).
  *
  * Each answer updates the session, records the attempt as a payment grouped
  * under it, recalculates the lead's payment status, and — when something
@@ -213,15 +214,22 @@ class PaymentSyncService
                 'connector_transaction_id' => $payment['connector_transaction_id'] ?? null,
             ]);
             $attributes += HyperswitchClient::errorOf($payment);
+
+            // Expiry of the link (older sessions didn't save it at creation)
+            if (! $session->expires_at && ($expiresAt = HyperswitchClient::expiresAtOf($payment))) {
+                $attributes['expires_at'] = $expiresAt;
+            }
         }
 
         if ($forced) {
-            $session->forced_syncs++;
             $attributes['last_forced_sync_at'] = $now;
-            $attributes['forced_syncs'] = $session->forced_syncs;
+            $attributes['forced_syncs'] = $session->forced_syncs + 1;
         }
 
-        $newStatus = $this->statusFor($session, $payment);
+        // The status and the schedule below read these new values
+        $session->fill($attributes);
+
+        $newStatus = $this->statusFor($session, $payment, $forced);
 
         if ($newStatus === PaymentSessionStatusEnum::OUVERTE && $previous === PaymentSessionStatusEnum::A_VERIFIER) {
             // The uncertain creation did happen: keep its link
@@ -241,7 +249,10 @@ class PaymentSyncService
 
         $session->update($attributes);
 
-        $paymentChanged = $payment && $this->recordAttempt($session, $payment);
+        // An expired link was never paid: no payment to record
+        $paymentChanged = $payment
+            && $session->status !== PaymentSessionStatusEnum::EXPIREE
+            && $this->recordAttempt($session, $payment);
 
         return [
             'session' => $session,
@@ -253,13 +264,26 @@ class PaymentSyncService
     /**
      * Session status after this answer (null = unchanged).
      *
+     * Past the link's expiry, Hyperswitch still says "waiting for the
+     * client"; a forced sync then gets "failed / PSP_010 transaction not
+     * found" when the client never validated a card. Both mean the link
+     * expired unpaid: EXPIREE, not a failed payment. A real refusal (bank
+     * code, a transaction at Sogecommerce) stays ECHOUEE.
+     *
      * @param  array<string, mixed>|null  $payment
      */
-    protected function statusFor(PaymentSession $session, ?array $payment): ?PaymentSessionStatusEnum
+    protected function statusFor(PaymentSession $session, ?array $payment, bool $forced): ?PaymentSessionStatusEnum
     {
         if ($payment === null) {
             // Never created at Hyperswitch: nothing to pay
             return PaymentSessionStatusEnum::ANNULEE;
+        }
+
+        $pastExpiry = $session->status === PaymentSessionStatusEnum::OUVERTE
+            && PaymentSyncSchedule::isPastExpiry($session->expires_at, now());
+
+        if ($pastExpiry && HyperswitchClient::neverAttempted($payment)) {
+            return PaymentSessionStatusEnum::EXPIREE;
         }
 
         if ($mapped = PaymentSessionStatusEnum::fromProvider($payment['status'] ?? null)) {
@@ -271,6 +295,12 @@ class PaymentSyncService
             return HyperswitchClient::extractPaymentUrl($payment)
                 ? PaymentSessionStatusEnum::OUVERTE
                 : PaymentSessionStatusEnum::ANNULEE;
+        }
+
+        // Still "waiting for the client" after the bank was asked: expired
+        // unpaid (a payment being processed is never expired)
+        if ($pastExpiry && $forced && ! PaymentSessionStatusEnum::providerIsProcessing($payment['status'] ?? null)) {
+            return PaymentSessionStatusEnum::EXPIREE;
         }
 
         return null;
@@ -367,7 +397,7 @@ class PaymentSyncService
             report($e);
         }
 
-        if ($statusChanged && in_array($session->status, [PaymentSessionStatusEnum::PAYEE, PaymentSessionStatusEnum::ECHOUEE], true)) {
+        if ($statusChanged && in_array($session->status, [PaymentSessionStatusEnum::PAYEE, PaymentSessionStatusEnum::ECHOUEE, PaymentSessionStatusEnum::EXPIREE], true)) {
             try {
                 collect([$session->creator, $session->lead->assignedAgent])
                     ->filter()
@@ -407,11 +437,14 @@ class PaymentSyncService
 
     /**
      * A forced sync asked by a user only makes sense once the client came
-     * back from the bank, or while the payment is being processed.
+     * back from the bank, while the payment is being processed, or once
+     * the link has expired (only the bank can then close it).
      */
     protected function shouldForce(PaymentSession $session): bool
     {
-        return $session->returned_at !== null || PaymentSessionStatusEnum::providerIsProcessing($session->provider_status);
+        return $session->returned_at !== null
+            || PaymentSessionStatusEnum::providerIsProcessing($session->provider_status)
+            || PaymentSyncSchedule::isPastExpiry($session->expires_at, now());
     }
 
     /**
@@ -433,10 +466,11 @@ class PaymentSyncService
 
     /**
      * Next check of a payment still not final:
-     *  - client came back → the forced sync 30 s after the return, then
-     *    nothing more;
+     *  - client came back → the forced sync 30 s after the return;
      *  - client not back → a normal read every 15 s during the first 10
-     *    minutes of the link, then nothing more.
+     *    minutes of the link;
+     *  - then only the link's expiry: one forced check just after it
+     *    (PaymentSyncSchedule::nextExpiryCheck), which closes it.
      *
      * @return array<string, mixed>
      */
@@ -444,26 +478,27 @@ class PaymentSyncService
     {
         $now = now();
 
-        if ($session->returned_at) {
-            $forcedAt = PaymentSyncSchedule::nextForcedAt($session->returned_at, $session->forced_syncs);
-
-            return $forcedAt
-                ? ['force_pending' => true, 'next_sync_at' => $forcedAt->greaterThan($now) ? $forcedAt : $now]
-                : ['force_pending' => false, 'next_sync_at' => null];
+        if ($session->returned_at && ($forcedAt = PaymentSyncSchedule::nextForcedAt($session->returned_at, $session->forced_syncs))) {
+            return ['force_pending' => true, 'next_sync_at' => $forcedAt->greaterThan($now) ? $forcedAt : $now];
         }
 
-        $delay = PaymentSyncSchedule::nextNormalDelay($session->created_at, $now);
+        if (! $session->returned_at && ($delay = PaymentSyncSchedule::nextNormalDelay($session->created_at, $now)) !== null) {
+            return [
+                'force_pending' => false,
+                'next_sync_at' => $now->copy()->addSeconds($delay),
+                'sync_attempts' => $session->sync_attempts + 1,
+            ];
+        }
 
-        return [
-            'force_pending' => false,
-            'next_sync_at' => $delay === null ? null : $now->copy()->addSeconds($delay),
-            'sync_attempts' => $session->sync_attempts + 1,
-        ];
+        $checkAt = PaymentSyncSchedule::nextExpiryCheck($session->expires_at, $session->provider_status, $now);
+
+        return ['force_pending' => $checkAt !== null, 'next_sync_at' => $checkAt];
     }
 
     /**
      * No usable answer from Hyperswitch: keep the status, try again later.
-     * A forced sync that got no answer still counts (only one is planned).
+     * A forced sync that got no answer still counts. A link is never
+     * closed without a verified answer.
      */
     protected function reschedule(PaymentSession $session, bool $forced): void
     {
