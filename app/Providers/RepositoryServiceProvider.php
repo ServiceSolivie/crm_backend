@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Repositories\Contracts\AppointmentReminderRepositoryInterface;
 use App\Repositories\Contracts\AppointmentRepositoryInterface;
+use App\Repositories\Contracts\CampaignRepositoryInterface;
 use App\Repositories\Contracts\ContractRepositoryInterface;
 use App\Repositories\Contracts\CredentialRepositoryInterface;
 use App\Repositories\Contracts\DashboardRepositoryInterface;
@@ -21,6 +22,7 @@ use App\Repositories\Contracts\UserRepositoryInterface;
 use App\Repositories\Contracts\VaultAuditLogRepositoryInterface;
 use App\Repositories\Eloquent\AppointmentReminderRepository;
 use App\Repositories\Eloquent\AppointmentRepository;
+use App\Repositories\Eloquent\CampaignRepository;
 use App\Repositories\Eloquent\ContractRepository;
 use App\Repositories\Eloquent\CredentialRepository;
 use App\Repositories\Eloquent\DashboardRepository;
@@ -49,6 +51,7 @@ class RepositoryServiceProvider extends ServiceProvider
         UserRepositoryInterface::class => UserRepository::class,
         LeadRepositoryInterface::class => LeadRepository::class,
         AppointmentRepositoryInterface::class => AppointmentRepository::class,
+        CampaignRepositoryInterface::class => CampaignRepository::class,
         TeamRepositoryInterface::class => TeamRepository::class,
         DashboardRepositoryInterface::class => DashboardRepository::class,
         ReportRepositoryInterface::class => ReportRepository::class,
