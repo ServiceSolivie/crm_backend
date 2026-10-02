@@ -35,6 +35,7 @@ class Lead extends Model
         'address',
         'birth_date',
         'lead_source_id',
+        'campaign_id',
         'insurance_type',
         'client_type',
         'company_status',
@@ -88,6 +89,11 @@ class Lead extends Model
     public function leadSource(): BelongsTo
     {
         return $this->belongsTo(LeadSource::class);
+    }
+
+    public function campaign(): BelongsTo
+    {
+        return $this->belongsTo(Campaign::class);
     }
 
     public function assignedAgent(): BelongsTo

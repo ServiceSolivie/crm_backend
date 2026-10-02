@@ -41,6 +41,14 @@ return [
         'webhook_secret' => env('GOOGLE_SHEETS_WEBHOOK_SECRET'),
     ],
 
+    'google_ads' => [
+        'webhook_key' => env('GOOGLE_ADS_WEBHOOK_KEY'),
+    ],
+
+    'acquisition' => [
+        'system_user_id' => env('ACQUISITION_SYSTEM_USER_ID'),
+    ],
+
     'plane' => [
         'base_url' => env('PLANE_BASE_URL'),
         'api_key' => env('PLANE_API_KEY'),

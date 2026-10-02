@@ -46,6 +46,10 @@ class LeadResource extends BaseResource
                 'name' => $this->leadSource->name,
                 'code' => $this->leadSource->code,
             ]),
+            'campaign' => $this->whenLoaded('campaign', fn () => $this->campaign ? [
+                'id' => $this->campaign->id,
+                'name' => $this->campaign->name,
+            ] : null),
             'assigned_agent' => $this->whenLoaded('assignedAgent', fn () => $this->assignedAgent ? [
                 'id' => $this->assignedAgent->id,
                 'name' => $this->assignedAgent->name,

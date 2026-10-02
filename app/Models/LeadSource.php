@@ -31,4 +31,9 @@ class LeadSource extends Model
     {
         return $this->hasMany(Lead::class, 'lead_source_id');
     }
+
+    public function campaigns(): HasMany
+    {
+        return $this->hasMany(Campaign::class);
+    }
 }

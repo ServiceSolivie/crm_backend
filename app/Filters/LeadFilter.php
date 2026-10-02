@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Builder;
  *   GET /leads?payment_status=PAYE         (NON_PAYE, EN_ATTENTE, PARTIELLEMENT_PAYE, PAYE, REMBOURSE)
  *   GET /leads?due=today                   (open appointment today or overdue; due=overdue for overdue only)
  *   GET /leads?lead_source_id=2 (alias: source_id, accepts several values too)
+ *   GET /leads?campaign_id=3
  *   GET /leads?city=Paris
  *   GET /leads?search=John                 (matches reference, name, phone, email)
  *   GET /leads?from=2026-06-01              (created_at >=)
@@ -57,6 +58,11 @@ class LeadFilter extends QueryFilter
     protected function assignedTo(string|array $value): void
     {
         $this->whereIn('assigned_to', $value);
+    }
+
+    protected function campaignId(string|array $value): void
+    {
+        $this->whereIn('campaign_id', $value);
     }
 
     protected function dvcStatus(string|array $value): void

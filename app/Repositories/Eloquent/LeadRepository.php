@@ -19,6 +19,7 @@ class LeadRepository extends BaseRepository implements LeadRepositoryInterface
     {
         $query = $this->newQuery()->with([
             'leadSource',
+            'campaign',
             'assignedAgent',
             'team',
             'creator',
