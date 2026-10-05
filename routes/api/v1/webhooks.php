@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Acquisition\GoogleAdsLeadWebhookController;
 use App\Http\Controllers\Api\V1\GoogleSheetsWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -12,3 +13,5 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('webhooks')->name('webhooks.')->middleware('verify_webhook_secret')->group(function () {
     Route::post('google-sheets/leads', [GoogleSheetsWebhookController::class, 'store'])->name('google-sheets.leads');
 });
+
+Route::post('webhooks/google-ads/leads', [GoogleAdsLeadWebhookController::class, 'store'])->name('webhooks.google-ads.leads');
