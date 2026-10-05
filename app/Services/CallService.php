@@ -11,13 +11,18 @@ use App\Models\Call;
 use App\Models\Lead;
 use App\Models\User;
 use App\Repositories\Contracts\CallRepositoryInterface;
+use App\Services\Ringover\RingoverClient;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class CallService
 {
-    public function __construct(protected CallRepositoryInterface $calls) {}
+    public function __construct(
+        protected CallRepositoryInterface $calls,
+        protected RingoverClient $ringover,
+    ) {}
 
     public function paginateForUser(User $user, CallFilter $filters, int $perPage = 15): LengthAwarePaginator
     {
@@ -38,9 +43,10 @@ class CallService
 
     /**
      * Record that an agent is calling a lead from the CRM. The call is then
-     * dialled by the embedded Ringover phone; Ringover's own events complete it.
+     * dialled by the embedded Ringover phone or, with $viaMobile, by Ringover
+     * ringing the agent's own devices first. Ringover's own events complete it.
      */
-    public function initiate(Lead $lead, User $agent): Call
+    public function initiate(Lead $lead, User $agent, bool $viaMobile = false): Call
     {
         if (! $agent->isRingoverLinked() || $agent->ringover_number === null) {
             throw new ApiException('Votre compte n\'est pas lié à Ringover. Contactez votre administrateur.', 422);
@@ -50,7 +56,7 @@ class CallService
             throw new ApiException('Ce lead ne peut pas être appelé (numéro invalide ou marqué comme erroné).', 422);
         }
 
-        return Call::create([
+        $call = Call::create([
             'lead_id' => $lead->id,
             'user_id' => $agent->id,
             'team_id' => $agent->team_id ?? $lead->team_id,
@@ -62,6 +68,19 @@ class CallService
             'contact_number' => $lead->phone_e164,
             'started_at' => now(),
         ]);
+
+        if ($viaMobile) {
+            try {
+                $this->ringover->requestCallback($agent->ringover_number, $lead->phone_e164);
+            } catch (Throwable $e) {
+                // Nothing was dialled: do not leave an attempt in the history.
+                $call->delete();
+
+                throw $e;
+            }
+        }
+
+        return $call;
     }
 
     /**
@@ -100,6 +119,19 @@ class CallService
 
             return $existing;
         });
+    }
+
+    /**
+     * Attach a call to a lead by hand (calls from numbers no lead had yet).
+     */
+    public function assignLead(Call $call, Lead $lead): Call
+    {
+        $call->update([
+            'lead_id' => $lead->id,
+            'team_id' => $call->team_id ?? $lead->team_id,
+        ]);
+
+        return $call;
     }
 
     public function updateNote(Call $call, ?string $note): Call

@@ -7,6 +7,7 @@ use App\Enums\CallStatusEnum;
 use App\Models\Call;
 use App\Models\Lead;
 use App\Models\User;
+use App\Notifications\MissedCallNotification;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -40,6 +41,8 @@ class CallRecorder
                 }
             }
 
+            $previousStatus = $call->status;
+
             $this->applyStatus($call, $data);
             $this->fillDerived($call);
             $this->attributeAgent($call, $data['ringover_user_id'] ?? null);
@@ -49,8 +52,39 @@ class CallRecorder
             $call->last_event = $event ?? $call->last_event;
             $call->save();
 
+            if ($this->becameMissed($call, $previousStatus)) {
+                DB::afterCommit(fn () => $this->notifyMissedCall($call));
+            }
+
             return $call;
         });
+    }
+
+    /**
+     * An incoming call that has just ended unanswered (missed or voicemail).
+     * Each call notifies once: later events (e.g. voicemail after missed) do not.
+     */
+    protected function becameMissed(Call $call, ?CallStatusEnum $previousStatus): bool
+    {
+        return $call->direction === CallDirectionEnum::IN
+            && in_array($call->status, [CallStatusEnum::MISSED, CallStatusEnum::VOICEMAIL], true)
+            && ($previousStatus === null || ! $previousStatus->isFinal());
+    }
+
+    /**
+     * Tell the agent the lead is assigned to. Calls caught up long after the
+     * fact (e.g. after an outage) are not worth a notification.
+     */
+    protected function notifyMissedCall(Call $call): void
+    {
+        $lead = $call->lead;
+        $agent = $lead?->assignedAgent;
+
+        if ($agent === null || ! $agent->is_active || ($call->started_at && $call->started_at->lt(now()->subDay()))) {
+            return;
+        }
+
+        $agent->notify(new MissedCallNotification($call));
     }
 
     /**

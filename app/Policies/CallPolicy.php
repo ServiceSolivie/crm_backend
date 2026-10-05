@@ -42,6 +42,19 @@ class CallPolicy
     }
 
     /**
+     * Attach a call to a lead by hand. Only unmatched calls, unless the user
+     * sees all calls (then a wrong match can also be corrected).
+     */
+    public function assignLead(User $user, Call $call): bool
+    {
+        if (! $this->view($user, $call)) {
+            return false;
+        }
+
+        return $call->lead_id === null || $user->can(PermissionEnum::CALLS_VIEW_ALL->value);
+    }
+
+    /**
      * Listen to the recording / voicemail and read the AI summary and transcript.
      */
     public function listen(User $user, Call $call): bool

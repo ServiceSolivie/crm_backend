@@ -64,6 +64,18 @@ class Lead extends Model
                 $lead->phone_e164 = PhoneNumber::toE164($lead->phone);
             }
         });
+
+        // Calls received from this number before the lead existed (or before
+        // its number was corrected) now belong to it.
+        static::saved(function (Lead $lead) {
+            // wasChanged() is only filled on updates, hence wasRecentlyCreated for new leads.
+            if ($lead->phone_e164 !== null && ($lead->wasRecentlyCreated || $lead->wasChanged('phone_e164'))) {
+                Call::whereNull('lead_id')
+                    ->where('is_internal', false)
+                    ->where('contact_number', $lead->phone_e164)
+                    ->update(['lead_id' => $lead->id]);
+            }
+        });
     }
 
     public function leadSource(): BelongsTo
