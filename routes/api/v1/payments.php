@@ -28,4 +28,7 @@ Route::middleware(['auth:sanctum', 'active'])->prefix('leads/{lead}/payment-sess
     Route::post('/', [PaymentSessionController::class, 'store'])->name('store');
     Route::post('/{paymentSession}/cancel', [PaymentSessionController::class, 'cancel'])->name('cancel');
     Route::post('/{paymentSession}/verify', [PaymentSessionController::class, 'verify'])->name('verify');
+    // Full refund of a paid request, and the check of a pending refund
+    Route::post('/{paymentSession}/refund', [PaymentSessionController::class, 'refund'])->name('refund');
+    Route::post('/{paymentSession}/refund/verify', [PaymentSessionController::class, 'verifyRefund'])->name('refund.verify');
 });

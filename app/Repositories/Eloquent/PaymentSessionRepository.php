@@ -20,7 +20,7 @@ class PaymentSessionRepository extends BaseRepository implements PaymentSessionR
     public function paginateScoped(PaymentSessionFilter $filters, int $perPage = 15, ?Closure $leadScope = null): LengthAwarePaginator
     {
         return $this->newQuery()
-            ->with(['lead:id,reference,first_name,last_name', 'creator:id,name'])
+            ->with(['lead:id,reference,first_name,last_name,expected_revenue', 'creator:id,name', 'latestRefund'])
             ->when($leadScope, fn ($query) => $query->whereHas('lead', $leadScope))
             ->filter($filters)
             ->latest('id')
@@ -31,7 +31,7 @@ class PaymentSessionRepository extends BaseRepository implements PaymentSessionR
     {
         return $this->newQuery()
             ->where('lead_id', $leadId)
-            ->with('creator')
+            ->with(['creator', 'latestRefund'])
             ->latest('id')
             ->get();
     }

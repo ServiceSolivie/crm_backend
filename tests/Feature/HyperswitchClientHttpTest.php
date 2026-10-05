@@ -147,6 +147,105 @@ class HyperswitchClientHttpTest extends TestCase
         })->once();
     }
 
+    /* ── Refunds ─────────────────────────────────────────────────────── */
+
+    private const REFUND_ID = 'ref_abcdefghijklmnopqrstuvwxyz';
+
+    private function refund(): array
+    {
+        return $this->client()->createRefund(self::REFUND_ID, self::PAYMENT_ID, '9.90', 'Demande du client', ['crm_reference' => 'PAY-1-1']);
+    }
+
+    public function test_refund_cancelled_before_settlement_is_succeeded_at_once(): void
+    {
+        Http::fake(['hs.test/refunds' => Http::response([
+            'refund_id' => self::REFUND_ID,
+            'payment_id' => self::PAYMENT_ID,
+            'status' => 'succeeded',
+            'amount' => 990,
+            'connector_refund_id' => 'UUID_DU_DEBIT_INITIAL',
+        ])]);
+
+        $result = $this->refund();
+
+        $this->assertSame('succeeded', $result['status']);
+        $this->assertSame('UUID_DU_DEBIT_INITIAL', $result['connector_refund_id']);
+        // Our own refund id and the full amount in cents are sent
+        Http::assertSent(fn ($request) => $request->url() === 'https://hs.test/refunds'
+            && $request['refund_id'] === self::REFUND_ID
+            && $request['payment_id'] === self::PAYMENT_ID
+            && $request['amount'] === 990);
+    }
+
+    public function test_refund_after_settlement_is_pending_with_a_new_credit(): void
+    {
+        Http::fake(['hs.test/refunds' => Http::response([
+            'refund_id' => self::REFUND_ID,
+            'status' => 'pending',
+            'connector_refund_id' => 'NOUVEL_UUID_DE_CREDIT',
+        ])]);
+
+        $result = $this->refund();
+
+        $this->assertSame('pending', $result['status']);
+        $this->assertSame('NOUVEL_UUID_DE_CREDIT', $result['connector_refund_id']);
+    }
+
+    public function test_partial_refund_refusal_is_clear_not_uncertain(): void
+    {
+        Http::fake(['hs.test/refunds' => Http::response(['error' => [
+            'type' => 'invalid_request',
+            'code' => 'IR_19',
+            'message' => 'Payment method type not supported',
+            'reason' => 'Partial refund is not supported by sogecommerce',
+        ]], 400)]);
+
+        try {
+            $this->refund();
+            $this->fail('An exception was expected');
+        } catch (ApiException $e) {
+            $this->assertNotInstanceOf(HyperswitchUncertainException::class, $e);
+            $this->assertSame(['code' => 'IR_19'], $e->getErrors());
+            $this->assertStringContainsString('Partial refund is not supported', $e->getMessage());
+        }
+    }
+
+    public function test_refund_timeout_and_server_error_are_uncertain(): void
+    {
+        Http::fake(fn () => throw new ConnectionException('cURL error 28: timed out'));
+
+        try {
+            $this->refund();
+            $this->fail('An exception was expected');
+        } catch (HyperswitchUncertainException) {
+            $this->assertTrue(true);
+        }
+
+        Http::fake(['hs.test/refunds' => Http::response(['error' => ['message' => 'boom']], 500)]);
+
+        $this->expectException(HyperswitchUncertainException::class);
+        $this->refund();
+    }
+
+    public function test_retrieve_refund_force_sync_and_unknown_refund(): void
+    {
+        Http::fake([
+            'hs.test/refunds/'.self::REFUND_ID.'*' => Http::response(['refund_id' => self::REFUND_ID, 'status' => 'succeeded']),
+            'hs.test/refunds/*' => Http::response(['error' => ['message' => 'Refund does not exist in our records']], 404),
+        ]);
+
+        $this->assertSame('succeeded', $this->client()->retrieveRefund(self::REFUND_ID, true)['status']);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/refunds/'.self::REFUND_ID.'?force_sync=true'));
+
+        try {
+            $this->client()->retrieveRefund('ref_unknown');
+            $this->fail('An exception was expected');
+        } catch (ApiException $e) {
+            $this->assertNotInstanceOf(HyperswitchUncertainException::class, $e);
+            $this->assertSame(404, $e->getStatusCode());
+        }
+    }
+
     public function test_retrieve_unknown_payment_is_a_404(): void
     {
         Http::fake(['hs.test/payments/*' => Http::response(['error' => ['message' => 'Payment does not exist in our records']], 404)]);

@@ -148,7 +148,93 @@ class HyperswitchClient
         ));
     }
 
+    /* ── Refunds ─────────────────────────────────────────────────────── */
+
+    /**
+     * Refund a payment in full (POST /refunds), with the refund id chosen
+     * by the CRM ($refundId, see generateRefundId()), so it can be checked
+     * even if the answer is lost. Sogecommerce only accepts full refunds:
+     * a partial amount is refused with IR_19.
+     *
+     * Before settlement Sogecommerce cancels the debit (status succeeded);
+     * after settlement it creates a credit (status pending, then succeeded).
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array{refund_id: string, status: ?string, connector_refund_id: ?string, error_code: ?string, error_message: ?string, payload: array<string, mixed>}
+     *
+     * @throws ApiException|HyperswitchUncertainException
+     */
+    public function createRefund(string $refundId, string $paymentId, string $amount, string $reason, array $metadata = []): array
+    {
+        $this->ensureConfigured();
+
+        $payload = $this->buildRefundPayload($refundId, $paymentId, $amount, $reason, $metadata);
+
+        $body = $this->send(
+            'POST /refunds',
+            ['refund_id' => $refundId, 'payment_id' => $paymentId],
+            fn (PendingRequest $http) => $http->post('/refunds', $payload),
+            'Hyperswitch a refusé le remboursement',
+        );
+
+        return [
+            'refund_id' => $body['refund_id'] ?? $refundId,
+            'status' => $body['status'] ?? null,
+            'connector_refund_id' => $body['connector_refund_id'] ?? null,
+            ...self::errorOf($body),
+            'payload' => self::withoutSecrets($body),
+        ];
+    }
+
+    /**
+     * Current state of a refund (GET /refunds/{id}); force_sync asks the
+     * connector (Sogecommerce Transaction/Get on the connector_refund_id).
+     *
+     * - 404: ApiException with code 404 (the refund does not exist)
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ApiException|HyperswitchUncertainException
+     */
+    public function retrieveRefund(string $refundId, bool $forceSync = false): array
+    {
+        $this->ensureConfigured();
+
+        return self::withoutSecrets($this->send(
+            'GET /refunds/{id}'.($forceSync ? ' (force_sync)' : ''),
+            ['refund_id' => $refundId],
+            fn (PendingRequest $http) => $http->get('/refunds/'.rawurlencode($refundId), $forceSync ? ['force_sync' => 'true'] : []),
+            "Hyperswitch n'a pas pu retrouver le remboursement {$refundId}",
+        ));
+    }
+
     /* ── Payload builders (pure) ─────────────────────────────────────── */
+
+    /**
+     * Body of POST /refunds: always the full amount of the payment.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    public function buildRefundPayload(string $refundId, string $paymentId, string $amount, string $reason, array $metadata = []): array
+    {
+        return [
+            'payment_id' => $paymentId,
+            'refund_id' => $refundId,
+            'amount' => self::toMinorUnits($amount),
+            'reason' => mb_substr($reason, 0, 255),
+            'metadata' => ['source' => 'solva-crm', ...$metadata],
+        ];
+    }
+
+    /**
+     * Refund id chosen by the CRM: 30 characters like payment ids
+     * ("ref_" + 26 letters/digits).
+     */
+    public static function generateRefundId(): string
+    {
+        return 'ref_'.Str::random(26);
+    }
 
     /**
      * Body of POST /payments: card redirect with 3D Secure, captured
@@ -279,10 +365,12 @@ class HyperswitchClient
     {
         return array_filter([
             'payment_id' => $body['payment_id'] ?? null,
+            'refund_id' => $body['refund_id'] ?? null,
             'status' => $body['status'] ?? null,
             'connector' => $body['connector'] ?? null,
             'merchant_connector_id' => $body['merchant_connector_id'] ?? null,
             'connector_transaction_id' => $body['connector_transaction_id'] ?? null,
+            'connector_refund_id' => $body['connector_refund_id'] ?? null,
             'error_code' => $body['error_code'] ?? ($body['error']['code'] ?? null),
             'error_message' => $body['error_message'] ?? ($body['error']['message'] ?? null),
             'unified_code' => $body['unified_code'] ?? null,

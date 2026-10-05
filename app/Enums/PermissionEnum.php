@@ -76,6 +76,7 @@ enum PermissionEnum: string implements HasLabel
     case PAYMENTS_CREATE = 'payments.create';
     case PAYMENTS_VIEW = 'payments.view';
     case PAYMENTS_DELETE = 'payments.delete';
+    case PAYMENTS_REFUND = 'payments.refund';
 
     // Revenue
     case REVENUE_VIEW_ALL = 'revenue.view_all';
@@ -171,6 +172,7 @@ enum PermissionEnum: string implements HasLabel
             self::PAYMENTS_CREATE => 'Enregistrer des paiements',
             self::PAYMENTS_VIEW => 'Voir les paiements',
             self::PAYMENTS_DELETE => 'Supprimer des paiements',
+            self::PAYMENTS_REFUND => 'Rembourser des paiements',
 
             self::REVENUE_VIEW_ALL => 'Voir le chiffre d\'affaires global',
             self::REVENUE_VIEW_TEAM => 'Voir le chiffre d\'affaires équipe',

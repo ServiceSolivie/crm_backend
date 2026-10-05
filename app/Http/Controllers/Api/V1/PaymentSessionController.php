@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\PaymentRefundStatusEnum;
 use App\Enums\PaymentSessionStatusEnum;
 use App\Filters\PaymentSessionFilter;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Payment\RefundPaymentSessionRequest;
 use App\Http\Requests\Payment\StorePaymentSessionRequest;
 use App\Http\Resources\PaymentSessionResource;
 use App\Models\Lead;
 use App\Models\Payment;
 use App\Models\PaymentSession;
+use App\Services\PaymentRefundService;
 use App\Services\PaymentSessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +22,10 @@ use Illuminate\Http\Request;
  */
 class PaymentSessionController extends Controller
 {
-    public function __construct(protected PaymentSessionService $sessionService) {}
+    public function __construct(
+        protected PaymentSessionService $sessionService,
+        protected PaymentRefundService $refundService,
+    ) {}
 
     /**
      * GET /payment-sessions — Payments page (filters: PaymentSessionFilter)
@@ -104,6 +110,55 @@ class PaymentSessionController extends Controller
         $this->authorize('managePaymentLinks', [Payment::class, $lead]);
 
         return $this->success(new PaymentSessionResource($this->sessionService->cancel($paymentSession)), 'Lien de paiement annulé');
+    }
+
+    /**
+     * POST /leads/{lead}/payment-sessions/{paymentSession}/refund { reason }
+     * Full refund of a paid request.
+     */
+    public function refund(RefundPaymentSessionRequest $request, Lead $lead, PaymentSession $paymentSession): JsonResponse
+    {
+        $this->authorize('refund', [Payment::class, $lead]);
+
+        $refund = $this->refundService->create($paymentSession, $request->user(), $request->validated('reason'));
+        $session = $this->withRefund($paymentSession);
+
+        return match ($refund->status) {
+            PaymentRefundStatusEnum::REUSSI => $this->success(new PaymentSessionResource($session), 'Paiement remboursé au client.'),
+            PaymentRefundStatusEnum::EN_ATTENTE => $this->success(new PaymentSessionResource($session), 'Remboursement accepté : le crédit sera versé au client à la prochaine remise bancaire.', 202),
+            PaymentRefundStatusEnum::A_VERIFIER => $this->success(new PaymentSessionResource($session), 'Hyperswitch n\'a pas confirmé le remboursement : il est à vérifier, ne le relancez pas.', 202),
+            PaymentRefundStatusEnum::ECHOUE => $this->error('Le remboursement a été refusé : '.($refund->error_message ?? 'motif inconnu'), 422),
+        };
+    }
+
+    /**
+     * POST /leads/{lead}/payment-sessions/{paymentSession}/refund/verify
+     * Fresh status of the session's pending refund.
+     */
+    public function verifyRefund(Lead $lead, PaymentSession $paymentSession): JsonResponse
+    {
+        $this->authorize('refund', [Payment::class, $lead]);
+
+        $refund = $paymentSession->latestRefund;
+        if (! $refund) {
+            return $this->error('Aucun remboursement pour cette demande de paiement.', 404);
+        }
+
+        $refund = $this->refundService->verify($refund);
+
+        $message = match ($refund->status) {
+            PaymentRefundStatusEnum::REUSSI => 'Remboursement terminé.',
+            PaymentRefundStatusEnum::ECHOUE => 'Le remboursement a échoué : '.($refund->error_message ?? 'motif inconnu'),
+            PaymentRefundStatusEnum::EN_ATTENTE => 'Le crédit n\'a pas encore été versé par la banque.',
+            PaymentRefundStatusEnum::A_VERIFIER => 'Hyperswitch ne confirme toujours pas le remboursement.',
+        };
+
+        return $this->success(new PaymentSessionResource($this->withRefund($paymentSession)), $message);
+    }
+
+    protected function withRefund(PaymentSession $session): PaymentSession
+    {
+        return $session->refresh()->load(['creator', 'latestRefund']);
     }
 
     protected function sentMessage(PaymentSession $session): string
