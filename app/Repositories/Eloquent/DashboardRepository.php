@@ -3,11 +3,13 @@
 namespace App\Repositories\Eloquent;
 
 use App\Enums\AppointmentStatusEnum;
+use App\Enums\CallStatusEnum;
 use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentStatusEnum;
 use App\Models\Appointment;
+use App\Models\Call;
 use App\Models\Lead;
 use App\Models\Payment;
 use App\Repositories\Contracts\DashboardRepositoryInterface;
@@ -304,6 +306,51 @@ class DashboardRepository implements DashboardRepositoryInterface
         $this->applyDateRange($query, 'scheduled_at', $from, $to);
 
         return $query;
+    }
+
+    public function callStatistics(?Closure $callScope, ?string $from, ?string $to): array
+    {
+        $query = Call::query()
+            ->where('is_internal', false)
+            ->where('status', '!=', CallStatusEnum::INITIATED->value);
+
+        if ($callScope) {
+            $callScope($query);
+        }
+
+        $this->applyDateRange($query, 'started_at', $from, $to);
+
+        $completed = CallStatusEnum::COMPLETED->value;
+        $row = $query->selectRaw("
+            SUM(direction = 'out') AS outbound,
+            SUM(direction = 'out' AND status = ?) AS outbound_answered,
+            SUM(direction = 'in') AS inbound,
+            SUM(direction = 'in' AND status = ?) AS inbound_answered,
+            SUM(direction = 'in' AND status IN (?, ?)) AS inbound_missed,
+            SUM(CASE WHEN status = ? THEN COALESCE(talk_seconds, 0) ELSE 0 END) AS talk_seconds,
+            SUM(status = ? AND talk_seconds IS NOT NULL) AS timed_calls
+        ", [
+            $completed, $completed,
+            CallStatusEnum::MISSED->value, CallStatusEnum::VOICEMAIL->value,
+            $completed, $completed,
+        ])->toBase()->first();
+
+        $outbound = (int) $row->outbound;
+        $outboundAnswered = (int) $row->outbound_answered;
+        $talkSeconds = (int) $row->talk_seconds;
+        $timedCalls = (int) $row->timed_calls;
+
+        return [
+            'total' => $outbound + (int) $row->inbound,
+            'outbound' => $outbound,
+            'outbound_answered' => $outboundAnswered,
+            'answer_rate' => $outbound > 0 ? round($outboundAnswered / $outbound * 100, 1) : 0.0,
+            'inbound' => (int) $row->inbound,
+            'inbound_answered' => (int) $row->inbound_answered,
+            'inbound_missed' => (int) $row->inbound_missed,
+            'talk_seconds' => $talkSeconds,
+            'average_talk_seconds' => $timedCalls > 0 ? (int) round($talkSeconds / $timedCalls) : 0,
+        ];
     }
 
     protected function applyDateRange(Builder $query, string $column, ?string $from, ?string $to): void

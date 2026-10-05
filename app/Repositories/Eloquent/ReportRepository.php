@@ -3,6 +3,7 @@
 namespace App\Repositories\Eloquent;
 
 use App\Enums\AppointmentStatusEnum;
+use App\Enums\CallStatusEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentStatusEnum;
 use App\Enums\RoleEnum;
@@ -61,7 +62,18 @@ class ReportRepository implements ReportRepositoryInterface
             ->withCount(['appointments as completed_appointments' => function (Builder $query) use ($from, $to) {
                 $query->where('status', AppointmentStatusEnum::REALISE->value);
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
-            }]);
+            }])
+            ->withCount(['calls as total_calls' => function (Builder $query) use ($from, $to) {
+                $this->realCalls($query, $from, $to);
+            }])
+            ->withCount(['calls as answered_calls' => function (Builder $query) use ($from, $to) {
+                $this->realCalls($query, $from, $to);
+                $query->where('status', CallStatusEnum::COMPLETED->value);
+            }])
+            ->withSum(['calls as talk_seconds' => function (Builder $query) use ($from, $to) {
+                $this->realCalls($query, $from, $to);
+                $query->where('status', CallStatusEnum::COMPLETED->value);
+            }], 'talk_seconds');
 
         if ($teamId) {
             $query->where('team_id', $teamId);
@@ -171,6 +183,15 @@ class ReportRepository implements ReportRepositoryInterface
         $this->applyDateRange($query, 'validated_at', $from, $to);
 
         return $query;
+    }
+
+    /**
+     * Calls with a real counterpart: no internal calls, no CRM click that never became a call.
+     */
+    protected function realCalls(Builder $query, ?string $from, ?string $to): void
+    {
+        $query->where('is_internal', false)->where('status', '!=', CallStatusEnum::INITIATED->value);
+        $this->applyDateRange($query, 'started_at', $from, $to);
     }
 
     protected function applyDateRange(Builder $query, string $column, ?string $from, ?string $to): void

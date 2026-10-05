@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\CallStatusEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PermissionEnum;
 use App\Http\Controllers\Controller;
@@ -64,6 +65,73 @@ class TeamLeaderController extends Controller
         return $this->success($result);
     }
 
+    /**
+     * Open leads of the team that nobody has called in the last X days
+     * (default 2), never-called leads first.
+     */
+    public function notCalled(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->team_id, 403, 'You are not assigned to a team.');
+        abort_unless(
+            $user->can(PermissionEnum::LEADS_VIEW_TEAM->value),
+            403,
+            'Insufficient permissions.',
+        );
+
+        $days = min(90, max(1, $request->integer('days', 2)));
+        $now = Carbon::now();
+        $threshold = $now->copy()->subDays($days);
+        $realCall = fn ($q) => $q->where('status', '!=', CallStatusEnum::INITIATED->value)->where('is_internal', false);
+
+        $leads = Lead::where('team_id', $user->team_id)
+            ->whereNotNull('assigned_to')
+            ->whereNotIn('status', [
+                LeadStatusEnum::VALIDE->value,
+                LeadStatusEnum::PERDU->value,
+                LeadStatusEnum::PAS_INTERESSE->value,
+                LeadStatusEnum::MAUVAIS_NUMERO->value,
+                LeadStatusEnum::LEAD_INVALIDE->value,
+            ])
+            ->whereDoesntHave('calls', fn ($q) => $realCall($q)->where('started_at', '>=', $threshold))
+            ->with('assignedAgent:id,name')
+            ->withMax(['calls as last_call_at' => $realCall], 'started_at')
+            ->get()
+            ->sortBy(fn (Lead $lead) => $lead->last_call_at ?? '0000')
+            ->values();
+
+        $items = $leads->take(200)->map(function (Lead $lead) use ($now) {
+            $lastCall = $lead->last_call_at ? Carbon::parse($lead->last_call_at) : null;
+
+            return [
+                'id' => $lead->id,
+                'reference' => $lead->reference,
+                'name' => trim(($lead->first_name ?? '').' '.($lead->last_name ?? '')),
+                'first_name' => $lead->first_name,
+                'last_name' => $lead->last_name,
+                'phone' => $lead->phone,
+                'is_callable' => $lead->isCallable(),
+                'status' => $lead->status,
+                'assigned_agent' => $lead->assignedAgent ? [
+                    'id' => $lead->assignedAgent->id,
+                    'name' => $lead->assignedAgent->name,
+                ] : null,
+                'last_call_at' => $lastCall?->toIso8601String(),
+                'days_since_last_call' => $lastCall ? (int) floor($lastCall->diffInDays($now)) : null,
+                'created_at' => $lead->created_at?->toIso8601String(),
+            ];
+        })->values();
+
+        return $this->success([
+            'days' => $days,
+            'summary' => [
+                'total' => $leads->count(),
+                'never_called' => $leads->whereNull('last_call_at')->count(),
+            ],
+            'items' => $items,
+        ]);
+    }
+
     public function followUps(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -85,11 +153,15 @@ class TeamLeaderController extends Controller
                 LeadStatusEnum::EN_ATTENTE_CLIENT->value,
             ])
             ->with(['assignedAgent:id,name', 'team:id,name'])
+            ->withMax(['calls as last_call_at' => fn ($q) => $q->where('status', '!=', CallStatusEnum::INITIATED->value)], 'started_at')
             ->get();
 
         $followUps = $leads->map(function (Lead $lead) use ($now) {
-            $lastActivity = $lead->updated_at;
-            $hoursIdle = $lastActivity ? $now->diffInHours($lastActivity) : 999;
+            // A call is activity too, even when the lead itself was not edited.
+            $lastCall = $lead->last_call_at ? Carbon::parse($lead->last_call_at) : null;
+            $lastActivity = $lastCall && $lastCall->gt($lead->updated_at) ? $lastCall : $lead->updated_at;
+            // Carbon 3 returns a signed difference: measure from the past to now.
+            $hoursIdle = $lastActivity ? $lastActivity->diffInHours($now) : 999;
 
             $urgency = match (true) {
                 $hoursIdle > 48 => 'overdue',
@@ -99,16 +171,16 @@ class TeamLeaderController extends Controller
             };
 
             $reason = null;
-            if ($lead->status === LeadStatusEnum::PAS_DE_REPONSE->value && $hoursIdle > 24) {
+            if ($lead->status === LeadStatusEnum::PAS_DE_REPONSE && $hoursIdle > 24) {
                 $reason = 'Pas de réponse depuis ' . round($hoursIdle) . 'h';
-            } elseif ($lead->status === LeadStatusEnum::RAPPEL->value) {
+            } elseif ($lead->status === LeadStatusEnum::RAPPEL) {
                 $hasAppointment = Appointment::where('lead_id', $lead->id)
                     ->where('status', 'PLANIFIE')
                     ->exists();
                 if (! $hasAppointment && $hoursIdle > 48) {
                     $reason = 'Rappel en retard de ' . round($hoursIdle - 48) . 'h';
                 }
-            } elseif ($lead->status === LeadStatusEnum::EN_ATTENTE_CLIENT->value && $hoursIdle > 48) {
+            } elseif ($lead->status === LeadStatusEnum::EN_ATTENTE_CLIENT && $hoursIdle > 48) {
                 $reason = 'En attente depuis ' . round($hoursIdle) . 'h';
             }
 
@@ -121,7 +193,8 @@ class TeamLeaderController extends Controller
                     'id' => $lead->assignedAgent->id,
                     'name' => $lead->assignedAgent->name,
                 ] : null,
-                'last_activity' => $lead->updated_at?->toIso8601String(),
+                'last_activity' => $lastActivity?->toIso8601String(),
+                'last_call_at' => $lastCall?->toIso8601String(),
                 'hours_idle' => round($hoursIdle),
                 'urgency' => $urgency,
                 'reason' => $reason,

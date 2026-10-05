@@ -15,6 +15,8 @@ class AgentReportResource extends BaseResource
         $validatedLeads = (int) $this->validated_leads;
         $totalAppointments = (int) $this->total_appointments;
         $completedAppointments = (int) $this->completed_appointments;
+        $totalCalls = (int) $this->total_calls;
+        $answeredCalls = (int) $this->answered_calls;
 
         return [
             'id' => $this->id,
@@ -33,6 +35,14 @@ class AgentReportResource extends BaseResource
                 'total' => $totalAppointments,
                 'completed' => $completedAppointments,
                 'completion_rate' => $totalAppointments > 0 ? round(($completedAppointments / $totalAppointments) * 100, 2) : 0.0,
+            ],
+            'calls' => [
+                'total' => $totalCalls,
+                'answered' => $answeredCalls,
+                'answer_rate' => $totalCalls > 0 ? round(($answeredCalls / $totalCalls) * 100, 2) : 0.0,
+                'talk_seconds' => (int) $this->talk_seconds,
+                // How many calls it takes to validate one lead (null: no validated lead yet).
+                'per_validated_lead' => $validatedLeads > 0 ? round($totalCalls / $validatedLeads, 1) : null,
             ],
         ];
     }

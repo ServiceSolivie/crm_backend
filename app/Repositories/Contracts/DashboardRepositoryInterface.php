@@ -14,6 +14,13 @@ interface DashboardRepositoryInterface
     public function kpis(?Closure $leadScope, ?Closure $appointmentScope, ?string $from, ?string $to): array;
 
     /**
+     * Ringover call activity: volumes, answer rate, talk time.
+     *
+     * @return array<string, mixed>
+     */
+    public function callStatistics(?Closure $callScope, ?string $from, ?string $to): array;
+
+    /**
      * Lead breakdowns by status and insurance type.
      *
      * @return array<string, mixed>

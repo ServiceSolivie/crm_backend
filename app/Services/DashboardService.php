@@ -81,6 +81,51 @@ class DashboardService
     /**
      * Whether the given user may view revenue data.
      */
+    public function canViewCalls(User $user): bool
+    {
+        return $this->canView($user)
+            && ($user->can(PermissionEnum::CALLS_VIEW_ALL->value)
+                || $user->can(PermissionEnum::CALLS_VIEW_TEAM->value)
+                || $user->can(PermissionEnum::CALLS_VIEW_OWN->value));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function calls(User $user, ?string $from = null, ?string $to = null, ?int $teamId = null, ?int $agentId = null): array
+    {
+        return $this->dashboard->callStatistics($this->callScope($user, $teamId, $agentId), $from, $to);
+    }
+
+    /**
+     * Same levels as the rest of the dashboard (global / team / personal),
+     * never wider than the calls the user may see. Team/agent filters only narrow it.
+     */
+    protected function callScope(User $user, ?int $teamId, ?int $agentId): Closure
+    {
+        return function (Builder $query) use ($user, $teamId, $agentId) {
+            $global = $user->can(PermissionEnum::DASHBOARD_VIEW_GLOBAL->value) && $user->can(PermissionEnum::CALLS_VIEW_ALL->value);
+            $team = $user->can(PermissionEnum::DASHBOARD_VIEW_TEAM->value) && $user->can(PermissionEnum::CALLS_VIEW_TEAM->value) && $user->team_id;
+
+            if (! $global) {
+                if ($team) {
+                    $query->where(fn (Builder $q) => $q->where('team_id', $user->team_id)
+                        ->orWhereHas('lead', fn (Builder $lead) => $lead->where('team_id', $user->team_id)));
+                } else {
+                    $query->where('user_id', $user->id);
+                }
+            }
+
+            if ($teamId) {
+                $query->where('team_id', $teamId);
+            }
+
+            if ($agentId) {
+                $query->where('user_id', $agentId);
+            }
+        };
+    }
+
     public function canViewRevenue(User $user): bool
     {
         return $user->can(PermissionEnum::REVENUE_VIEW_ALL->value)
