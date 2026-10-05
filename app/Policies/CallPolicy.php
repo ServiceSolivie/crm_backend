@@ -25,6 +25,23 @@ class CallPolicy
     }
 
     /**
+     * Start a call from the CRM (the lead itself is checked with LeadPolicy::view).
+     */
+    public function create(User $user): bool
+    {
+        return $user->can(PermissionEnum::CALLS_MAKE->value);
+    }
+
+    /**
+     * Link the Ringover call id and write the after-call note: the agent who
+     * made the call, or a super admin.
+     */
+    public function update(User $user, Call $call): bool
+    {
+        return $call->user_id === $user->id || $user->can(PermissionEnum::CALLS_VIEW_ALL->value);
+    }
+
+    /**
      * Listen to the recording / voicemail and read the AI summary and transcript.
      */
     public function listen(User $user, Call $call): bool

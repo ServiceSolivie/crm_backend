@@ -135,6 +135,15 @@ class Lead extends Model
         return bcsub($this->expected_revenue, $this->total_received, 2);
     }
 
+    /**
+     * A lead can be called when its number is valid and not flagged as wrong.
+     */
+    public function isCallable(): bool
+    {
+        return $this->phone_e164 !== null
+            && ! in_array($this->status, [LeadStatusEnum::MAUVAIS_NUMERO, LeadStatusEnum::LEAD_INVALIDE], true);
+    }
+
     public function calls(): HasMany
     {
         return $this->hasMany(Call::class);

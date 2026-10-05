@@ -29,7 +29,10 @@ class CallRecorder
     {
         return DB::transaction(function () use ($data, $source, $event) {
             $call = Call::where('ringover_call_id', $data['ringover_call_id'])->lockForUpdate()->first()
-                ?? new Call(['ringover_call_id' => $data['ringover_call_id'], 'source' => $source]);
+                ?? $this->pendingCrmCall($data)
+                ?? new Call(['source' => $source]);
+
+            $call->ringover_call_id = $data['ringover_call_id'];
 
             foreach (self::FIELDS as $field) {
                 if (($data[$field] ?? null) !== null) {
@@ -48,6 +51,31 @@ class CallRecorder
 
             return $call;
         });
+    }
+
+    /**
+     * A call the agent started from the CRM a moment ago, that the embedded
+     * phone has not linked to its Ringover id yet: same agent, same number.
+     */
+    protected function pendingCrmCall(array $data): ?Call
+    {
+        if (($data['direction'] ?? null) !== CallDirectionEnum::OUT || empty($data['to_number'])) {
+            return null;
+        }
+
+        $userId = isset($data['ringover_user_id'])
+            ? User::where('ringover_user_id', $data['ringover_user_id'])->value('id')
+            : null;
+
+        return Call::whereNull('ringover_call_id')
+            ->where('source', 'crm')
+            ->where('status', CallStatusEnum::INITIATED->value)
+            ->where('contact_number', $data['to_number'])
+            ->where('created_at', '>=', now()->subMinutes(10))
+            ->when($userId, fn ($query) => $query->where('user_id', $userId))
+            ->latest('id')
+            ->lockForUpdate()
+            ->first();
     }
 
     protected function applyStatus(Call $call, array $data): void

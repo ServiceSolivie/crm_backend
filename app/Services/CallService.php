@@ -2,13 +2,18 @@
 
 namespace App\Services;
 
+use App\Enums\CallDirectionEnum;
+use App\Enums\CallStatusEnum;
 use App\Enums\PermissionEnum;
+use App\Exceptions\ApiException;
 use App\Filters\CallFilter;
+use App\Models\Call;
 use App\Models\Lead;
 use App\Models\User;
 use App\Repositories\Contracts\CallRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class CallService
 {
@@ -29,6 +34,79 @@ class CallService
             $query->where('lead_id', $lead->id);
             ($this->visibilityScope($user))($query);
         });
+    }
+
+    /**
+     * Record that an agent is calling a lead from the CRM. The call is then
+     * dialled by the embedded Ringover phone; Ringover's own events complete it.
+     */
+    public function initiate(Lead $lead, User $agent): Call
+    {
+        if (! $agent->isRingoverLinked() || $agent->ringover_number === null) {
+            throw new ApiException('Votre compte n\'est pas lié à Ringover. Contactez votre administrateur.', 422);
+        }
+
+        if (! $lead->isCallable()) {
+            throw new ApiException('Ce lead ne peut pas être appelé (numéro invalide ou marqué comme erroné).', 422);
+        }
+
+        return Call::create([
+            'lead_id' => $lead->id,
+            'user_id' => $agent->id,
+            'team_id' => $agent->team_id ?? $lead->team_id,
+            'direction' => CallDirectionEnum::OUT,
+            'status' => CallStatusEnum::INITIATED,
+            'source' => 'crm',
+            'from_number' => $agent->ringover_number,
+            'to_number' => $lead->phone_e164,
+            'contact_number' => $lead->phone_e164,
+            'started_at' => now(),
+        ]);
+    }
+
+    /**
+     * Attach Ringover's call id, reported by the embedded phone, to a call
+     * started from the CRM. If Ringover's webhook already created that call,
+     * the two are merged so the history keeps a single entry.
+     */
+    public function linkRingoverCall(Call $call, string $ringoverCallId): Call
+    {
+        return DB::transaction(function () use ($call, $ringoverCallId) {
+            $call = Call::lockForUpdate()->findOrFail($call->id);
+
+            if ($call->ringover_call_id === $ringoverCallId) {
+                return $call;
+            }
+
+            if ($call->ringover_call_id !== null) {
+                throw new ApiException('Cet appel est déjà associé à un autre appel Ringover.', 409);
+            }
+
+            $existing = Call::where('ringover_call_id', $ringoverCallId)->lockForUpdate()->first();
+
+            if ($existing === null) {
+                $call->update(['ringover_call_id' => $ringoverCallId]);
+
+                return $call;
+            }
+
+            $existing->lead_id ??= $call->lead_id;
+            $existing->user_id ??= $call->user_id;
+            $existing->team_id ??= $call->team_id;
+            $existing->note ??= $call->note;
+            $existing->source = 'crm';
+            $existing->save();
+            $call->delete();
+
+            return $existing;
+        });
+    }
+
+    public function updateNote(Call $call, ?string $note): Call
+    {
+        $call->update(['note' => $note]);
+
+        return $call;
     }
 
     /**

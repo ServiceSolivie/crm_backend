@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\CallStatusEnum;
+use App\Models\Call;
 use App\Models\RingoverSyncRun;
 use App\Models\RingoverWebhookEvent;
 use App\Services\Ringover\CallRecorder;
@@ -37,6 +39,7 @@ class SyncRingoverCalls extends Command
         RingoverWebhookHandler $webhooks,
     ): int {
         $pending = $this->processPendingWebhooks($webhooks);
+        $this->removeAbandonedCrmCalls();
 
         if (! $client->isConfigured()) {
             $this->warn('Ringover is not configured (RINGOVER_API_KEY); skipping call sync.');
@@ -140,6 +143,25 @@ class SyncRingoverCalls extends Command
         }
 
         return $slices;
+    }
+
+    /**
+     * A "Call" click in the CRM that Ringover never reported (phone not signed
+     * in, dial cancelled…) is not a call. Remove it once it is clearly stale,
+     * unless the agent wrote a note on it.
+     */
+    protected function removeAbandonedCrmCalls(): void
+    {
+        $removed = Call::whereNull('ringover_call_id')
+            ->where('source', 'crm')
+            ->where('status', CallStatusEnum::INITIATED->value)
+            ->whereNull('note')
+            ->where('created_at', '<', now()->subHours(2))
+            ->delete();
+
+        if ($removed) {
+            $this->info("{$removed} abandoned call attempt(s) removed.");
+        }
     }
 
     /**
