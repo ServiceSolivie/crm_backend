@@ -6,6 +6,7 @@ use App\Exceptions\RingoverException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ringover\LinkRingoverUserRequest;
 use App\Http\Resources\UserResource;
+use App\Models\RingoverSyncRun;
 use App\Models\User;
 use App\Services\Ringover\RingoverClient;
 use App\Services\Ringover\RingoverUserLinker;
@@ -33,6 +34,7 @@ class RingoverController extends Controller
             'linked_users_count' => User::whereNotNull('ringover_user_id')->count(),
             'webhook_secret_configured' => filled(config('services.ringover.webhook_secret')),
             'error' => null,
+            'last_sync' => $this->lastSync(),
         ];
 
         if ($status['configured']) {
@@ -45,6 +47,26 @@ class RingoverController extends Controller
         }
 
         return $this->success($status);
+    }
+
+    /**
+     * Latest call sync run, and when calls were last fully synced.
+     */
+    protected function lastSync(): ?array
+    {
+        $latest = RingoverSyncRun::latest('id')->first();
+
+        if (! $latest) {
+            return null;
+        }
+
+        return [
+            'status' => $latest->status,
+            'ran_at' => $latest->started_at?->toIso8601String(),
+            'calls_synced' => $latest->calls_synced,
+            'error' => $latest->error,
+            'synced_until' => RingoverSyncRun::lastSuccessful()?->window_to?->toIso8601String(),
+        ];
     }
 
     public function users(): JsonResponse

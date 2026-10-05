@@ -2,6 +2,7 @@
 
 use App\Exceptions\ApiException;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\VerifyRingoverWebhook;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -30,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
+            'ringover.webhook' => VerifyRingoverWebhook::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -81,5 +83,6 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
         $schedule->command('google:sync-leads')->everyFifteenMinutes()->withoutOverlapping();
+        $schedule->command('ringover:sync-calls')->hourly()->withoutOverlapping();
     })
     ->create();

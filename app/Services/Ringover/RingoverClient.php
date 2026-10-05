@@ -4,6 +4,7 @@ namespace App\Services\Ringover;
 
 use App\Exceptions\RingoverException;
 use App\Support\PhoneNumber;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
@@ -63,6 +64,23 @@ class RingoverClient
         return count($this->users(fresh: true));
     }
 
+    /**
+     * Calls started between two dates, one page at a time (GET /v2/calls).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function calls(CarbonInterface $from, CarbonInterface $to, int $limit = 500, int $offset = 0): array
+    {
+        $body = $this->get('/calls', [
+            'start_date' => $from->copy()->utc()->format('Y-m-d\TH:i:s.v\Z'),
+            'end_date' => $to->copy()->utc()->format('Y-m-d\TH:i:s.v\Z'),
+            'limit_count' => $limit,
+            'limit_offset' => $offset,
+        ]);
+
+        return $body['call_list'] ?? [];
+    }
+
     protected function normaliseUser(array $user): array
     {
         return [
@@ -101,7 +119,8 @@ class RingoverClient
             throw RingoverException::requestFailed($response->status(), $response->json('message') ?? $response->body());
         }
 
-        return $response->json() ?? [];
+        // Ringover call ids exceed PHP's integer precision: keep big numbers as strings.
+        return json_decode($response->body(), true, 512, JSON_BIGINT_AS_STRING) ?? [];
     }
 
     protected function http(): PendingRequest

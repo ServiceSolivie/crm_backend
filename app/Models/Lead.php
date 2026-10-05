@@ -134,4 +134,9 @@ class Lead extends Model
 
         return bcsub($this->expected_revenue, $this->total_received, 2);
     }
+
+    public function calls(): HasMany
+    {
+        return $this->hasMany(Call::class);
+    }
 }

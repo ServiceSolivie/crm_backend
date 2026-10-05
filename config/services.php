@@ -45,6 +45,16 @@ return [
         'base_url' => env('RINGOVER_BASE_URL', 'https://public-api.ringover.com/v2'),
         'webhook_secret' => env('RINGOVER_WEBHOOK_SECRET'),
         'timeout' => (int) env('RINGOVER_TIMEOUT', 10),
+        'sync' => [
+            // First run (no previous successful sync): how far back to fetch.
+            'initial_hours' => (int) env('RINGOVER_SYNC_INITIAL_HOURS', 3),
+            // Never fetch further back than this, even after a very long outage.
+            'max_days' => (int) env('RINGOVER_SYNC_MAX_DAYS', 30),
+            // Re-fetch a few minutes before the last sync end, for calls still in progress then.
+            'overlap_minutes' => 15,
+            // Calls are requested in slices of this size to stay within API limits.
+            'slice_hours' => 24,
+        ],
     ],
 
     'phone' => [

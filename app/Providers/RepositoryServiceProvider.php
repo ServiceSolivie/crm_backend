@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Repositories\Contracts\AppointmentReminderRepositoryInterface;
 use App\Repositories\Contracts\AppointmentRepositoryInterface;
+use App\Repositories\Contracts\CallRepositoryInterface;
 use App\Repositories\Contracts\DashboardRepositoryInterface;
 use App\Repositories\Contracts\LeadImportRepositoryInterface;
 use App\Repositories\Contracts\LeadRepositoryInterface;
@@ -16,6 +17,7 @@ use App\Repositories\Contracts\TeamRepositoryInterface;
 use App\Repositories\Contracts\UserRepositoryInterface;
 use App\Repositories\Eloquent\AppointmentReminderRepository;
 use App\Repositories\Eloquent\AppointmentRepository;
+use App\Repositories\Eloquent\CallRepository;
 use App\Repositories\Eloquent\DashboardRepository;
 use App\Repositories\Eloquent\LeadImportRepository;
 use App\Repositories\Eloquent\LeadRepository;
@@ -48,6 +50,7 @@ class RepositoryServiceProvider extends ServiceProvider
         LeadDocumentRepositoryInterface::class => LeadDocumentRepository::class,
         DocumentTypeRepositoryInterface::class => DocumentTypeRepository::class,
         PaymentRepositoryInterface::class => PaymentRepository::class,
+        CallRepositoryInterface::class => CallRepository::class,
     ];
 
     public function register(): void

@@ -101,4 +101,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Payment::class, 'created_by');
     }
+
+    public function calls(): HasMany
+    {
+        return $this->hasMany(Call::class, 'user_id');
+    }
 }
