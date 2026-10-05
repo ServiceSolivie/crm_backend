@@ -31,6 +31,9 @@ class User extends Authenticatable
         'phone',
         'team_id',
         'last_login_at',
+        'ringover_user_id',
+        'ringover_number',
+        'ringover_linked_at',
     ];
 
     /**
@@ -55,7 +58,13 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
+            'ringover_linked_at' => 'datetime',
         ];
+    }
+
+    public function isRingoverLinked(): bool
+    {
+        return $this->ringover_user_id !== null;
     }
 
     public function team(): BelongsTo

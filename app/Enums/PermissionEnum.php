@@ -91,6 +91,18 @@ enum PermissionEnum: string implements HasLabel
     case DOCUMENT_REQUIREMENTS_VIEW = 'document_requirements.view';
     case DOCUMENT_REQUIREMENTS_MANAGE = 'document_requirements.manage';
 
+    // Calls (Ringover)
+    case CALLS_MAKE = 'calls.make';
+    case CALLS_VIEW_OWN = 'calls.view_own';
+    case CALLS_VIEW_TEAM = 'calls.view_team';
+    case CALLS_VIEW_ALL = 'calls.view_all';
+    case CALLS_LISTEN_OWN = 'calls.listen_own';
+    case CALLS_LISTEN_TEAM = 'calls.listen_team';
+    case CALLS_LISTEN_ALL = 'calls.listen_all';
+
+    // Ringover integration (admin)
+    case RINGOVER_MANAGE = 'ringover.manage';
+
     // Notifications
     case NOTIFICATIONS_VIEW = 'notifications.view';
 
@@ -159,6 +171,16 @@ enum PermissionEnum: string implements HasLabel
 
             self::DOCUMENT_REQUIREMENTS_VIEW => 'Voir les exigences documentaires',
             self::DOCUMENT_REQUIREMENTS_MANAGE => 'Gérer les exigences documentaires',
+
+            self::CALLS_MAKE => 'Passer des appels',
+            self::CALLS_VIEW_OWN => 'Voir ses appels',
+            self::CALLS_VIEW_TEAM => 'Voir les appels de l\'équipe',
+            self::CALLS_VIEW_ALL => 'Voir tous les appels',
+            self::CALLS_LISTEN_OWN => 'Écouter ses enregistrements et résumés',
+            self::CALLS_LISTEN_TEAM => 'Écouter les enregistrements et résumés de l\'équipe',
+            self::CALLS_LISTEN_ALL => 'Écouter tous les enregistrements et résumés',
+
+            self::RINGOVER_MANAGE => 'Gérer l\'intégration Ringover',
 
             self::NOTIFICATIONS_VIEW => 'View notifications',
 

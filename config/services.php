@@ -40,4 +40,16 @@ return [
         'sheet_id' => env('GOOGLE_SHEET_ID'),
     ],
 
+    'ringover' => [
+        'api_key' => env('RINGOVER_API_KEY'),
+        'base_url' => env('RINGOVER_BASE_URL', 'https://public-api.ringover.com/v2'),
+        'webhook_secret' => env('RINGOVER_WEBHOOK_SECRET'),
+        'timeout' => (int) env('RINGOVER_TIMEOUT', 10),
+    ],
+
+    'phone' => [
+        // Region used to interpret numbers written without an international prefix.
+        'default_region' => env('PHONE_DEFAULT_REGION', 'FR'),
+    ],
+
 ];

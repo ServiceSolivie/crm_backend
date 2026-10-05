@@ -6,6 +6,7 @@ use App\Enums\ClientTypeEnum;
 use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentStatusEnum;
+use App\Support\PhoneNumber;
 use App\Traits\Filterable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -53,6 +54,16 @@ class Lead extends Model
             'payment_status' => PaymentStatusEnum::class,
             'validated_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // Keep a normalised copy of the phone so calls can be matched to leads.
+        static::saving(function (Lead $lead) {
+            if ($lead->isDirty('phone') || $lead->phone_e164 === null) {
+                $lead->phone_e164 = PhoneNumber::toE164($lead->phone);
+            }
+        });
     }
 
     public function leadSource(): BelongsTo
