@@ -7,6 +7,7 @@ use App\Traits\Filterable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class PaymentSession extends Model
 {
@@ -91,5 +92,21 @@ class PaymentSession extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * Refund attempts of this paid request, newest first.
+     */
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(PaymentRefund::class)->latest('id');
+    }
+
+    /**
+     * The most recent refund attempt, if any.
+     */
+    public function latestRefund(): HasOne
+    {
+        return $this->hasOne(PaymentRefund::class)->latestOfMany();
     }
 }

@@ -24,6 +24,8 @@ enum PaymentSessionStatusEnum: string implements HasLabel
     case ECHOUEE = 'ECHOUEE';
     case ANNULEE = 'ANNULEE';
     case EXPIREE = 'EXPIREE';
+    // Was paid, then fully refunded to the client (PaymentRefundService)
+    case REMBOURSEE = 'REMBOURSEE';
 
     /**
      * Statuses that block sending another link for the same lead.
@@ -74,6 +76,7 @@ enum PaymentSessionStatusEnum: string implements HasLabel
             self::ECHOUEE => 'Échouée',
             self::ANNULEE => 'Annulée',
             self::EXPIREE => 'Expirée',
+            self::REMBOURSEE => 'Remboursée',
         };
     }
 }

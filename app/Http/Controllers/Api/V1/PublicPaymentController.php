@@ -77,6 +77,7 @@ class PublicPaymentController extends Controller
                 PaymentSessionStatusEnum::ECHOUEE => 'failed',
                 PaymentSessionStatusEnum::ANNULEE => 'cancelled',
                 PaymentSessionStatusEnum::EXPIREE => 'expired',
+                PaymentSessionStatusEnum::REMBOURSEE => 'refunded',
                 default => 'pending',
             },
             'company' => config('app.name'),

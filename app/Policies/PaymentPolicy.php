@@ -39,6 +39,16 @@ class PaymentPolicy
     }
 
     /**
+     * Refund a paid payment session to the client: real money goes back,
+     * so its own permission (super_admin only by default).
+     */
+    public function refund(User $user, Lead $lead): bool
+    {
+        return $user->can(PermissionEnum::PAYMENTS_REFUND->value)
+            && $this->canAccessLead($user, $lead);
+    }
+
+    /**
      * Change the contract total of a lead (e.g. raise it to ask for an
      * additional payment): the "revenue.set" permission, on a lead the
      * user can see.
