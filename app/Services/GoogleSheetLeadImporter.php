@@ -100,7 +100,6 @@ class GoogleSheetLeadImporter
     protected array $sourceCache = [];
 
     public function __construct(
-        protected GoogleSheetsService $sheetsService,
         protected LeadService $leadService,
     ) {}
 
@@ -121,7 +120,9 @@ class GoogleSheetLeadImporter
             throw new \InvalidArgumentException("Unknown sheet: {$sheetName}. Supported: ".implode(', ', array_keys(self::SHEET_COLUMNS)));
         }
 
-        $rows = $this->sheetsService->getRows($sheetName, 2);
+        // Resolved here rather than injected: it needs the Google credentials
+        // file, which only this seed uses — the webhook must work without it.
+        $rows = app(GoogleSheetsService::class)->getRows($sheetName, 2);
 
         $systemUser = User::where('email', 'akkaoui@crm.test')->first()
             ?? User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->first();
@@ -202,7 +203,7 @@ class GoogleSheetLeadImporter
      * let the sheet trigger that check; they carry no information we don't
      * already have more reliably ourselves.
      */
-    protected const WEBHOOK_META_KEYS = ['sheet', 'row', 'action', 'doublon', 'old_agent', 'new_agent', 'agent', 'date'];
+    protected const WEBHOOK_META_KEYS = ['sheet', 'row', 'action', 'doublon', 'old_agent', 'new_agent', 'agent', 'date', 'rattrapage'];
 
     protected const ENVELOPE_NOISE_KEYS = ['spreadsheet_id', 'spreadsheet_name', 'sent_at'];
 
@@ -356,6 +357,27 @@ class GoogleSheetLeadImporter
         }
 
         return ['status' => 'created', 'lead_id' => $lead->id];
+    }
+
+    /**
+     * Highest sheet row number already stored for the given sheet, or null
+     * when none is. The Apps Script uses it to resend every row between
+     * this one and its newest row, so a row missed by an earlier call gets
+     * caught up. Doublons count (they carry their own sheet_row_key), and
+     * so do soft-deleted leads, so a lead deleted on purpose never comes back.
+     */
+    public function lastStoredRow(string $sheet): ?int
+    {
+        $prefix = "{$sheet}:";
+
+        $rows = Lead::withTrashed()
+            ->where('sheet_row_key', 'like', addcslashes($prefix, '%_\\').'%')
+            ->pluck('sheet_row_key')
+            ->map(fn (string $key) => substr($key, strlen($prefix)))
+            ->filter(fn (string $row) => ctype_digit($row))
+            ->map(fn (string $row) => (int) $row);
+
+        return $rows->isEmpty() ? null : $rows->max();
     }
 
     /**

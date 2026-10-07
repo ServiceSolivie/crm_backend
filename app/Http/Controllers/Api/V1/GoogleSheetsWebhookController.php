@@ -34,6 +34,35 @@ class GoogleSheetsWebhookController extends Controller
 
         Log::info('google_sheets_webhook: '.$result['status'], ['payload' => $payload, 'result' => $result]);
 
+        // A row the script found missing from the CRM and resent on its own.
+        if (! empty($payload['rattrapage'])) {
+            Log::warning('google_sheets_webhook: lead manquant rattrape', [
+                'sheet' => $payload['sheet'] ?? null,
+                'row' => $payload['row'] ?? null,
+                'status' => $result['status'],
+                'lead_id' => $result['lead_id'] ?? null,
+            ]);
+        }
+
         return $this->success($result, "Lead {$result['status']}");
+    }
+
+    /**
+     * Highest row already stored for a sheet, so the Apps Script can resend
+     * every row between it and its newest one. null = nothing stored yet.
+     */
+    public function lastRow(Request $request): JsonResponse
+    {
+        $sheet = trim((string) $request->query('sheet', ''));
+
+        if ($sheet === '') {
+            return $this->error('The sheet parameter is required.', 422);
+        }
+
+        $lastRow = $this->importer->lastStoredRow($sheet);
+
+        Log::info('google_sheets_webhook: last-row', ['sheet' => $sheet, 'last_row' => $lastRow]);
+
+        return $this->success(['sheet' => $sheet, 'last_row' => $lastRow]);
     }
 }
