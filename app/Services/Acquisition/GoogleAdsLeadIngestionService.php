@@ -18,10 +18,13 @@ class GoogleAdsLeadIngestionService
 
     public function ingest(array $payload): void
     {
-        $expected = config('services.google_ads.webhook_key');
-        if (! $expected || ! hash_equals($expected, (string) $payload['google_key'])) {
-            throw new ApiException('Unauthorized.', 401);
-        }
+        $this->assertAuthenticRequest($payload);
+
+        $this->ingestVerifiedPayload($payload);
+    }
+
+    public function ingestVerifiedPayload(array $payload): void
+    {
 
         $source = LeadSource::query()->where('code', 'google_ads')->where('is_active', true)->first();
         if (! $source) {
@@ -75,6 +78,14 @@ class GoogleAdsLeadIngestionService
                 return;
             }
             throw $e;
+        }
+    }
+
+    public function assertAuthenticRequest(array $payload): void
+    {
+        $expected = config('services.google_ads.webhook_key');
+        if (! $expected || ! hash_equals($expected, (string) $payload['google_key'])) {
+            throw new ApiException('Unauthorized.', 401);
         }
     }
 
