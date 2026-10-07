@@ -252,7 +252,7 @@ class HyperswitchClient
             'confirm' => true,
             'capture_method' => 'automatic',
             'authentication_type' => 'three_ds',
-            'connector' => [$this->connector],
+            // 'connector' => [$this->connector],
             'profile_id' => $this->profileId,
             'payment_method' => 'card_redirect',
             'payment_method_type' => 'card_redirect',
