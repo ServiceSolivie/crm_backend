@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityEventEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PaymentStatusEnum;
@@ -38,6 +39,7 @@ class PaymentService
         protected PaymentSessionRepositoryInterface $sessions,
         protected LeadRepositoryInterface $leads,
         protected LeadService $leadService,
+        protected ActivityLogger $activity,
     ) {}
 
     public function listForLead(Lead $lead, int $perPage = 15): LengthAwarePaginator
@@ -105,6 +107,13 @@ class PaymentService
                 $this->euros($total),
                 $reason,
             ));
+
+            $this->activity->contractTotal($lead, ActivityEventEnum::PAYMENT_TOTAL_CHANGED, sprintf(
+                '%s → %s. Motif : %s',
+                $previous !== null ? $this->euros($previous) : 'non défini',
+                $this->euros($total),
+                $reason,
+            ), ['previous_total' => $previous, 'new_total' => $total, 'reason' => $reason], $user);
 
             return $lead;
         });

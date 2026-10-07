@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityEventEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PaymentSessionStatusEnum;
@@ -9,6 +10,7 @@ use App\Enums\PaymentSourceEnum;
 use App\Events\PaymentSessionUpdated;
 use App\Exceptions\ApiException;
 use App\Exceptions\HyperswitchUncertainException;
+use App\Models\ActivityLog;
 use App\Models\PaymentSession;
 use App\Models\User;
 use App\Notifications\PaymentResultNotification;
@@ -43,6 +45,7 @@ class PaymentSyncService
         protected PaymentService $paymentService,
         protected HyperswitchClient $hyperswitch,
         protected PaymentLinkSender $linkSender,
+        protected ActivityLogger $activity,
     ) {}
 
     /* ── Triggers ────────────────────────────────────────────────────── */
@@ -58,6 +61,7 @@ class PaymentSyncService
         if ($session->returned_at || ! $session->isPending()) {
             if (! $session->returned_at) {
                 $session->update(['returned_at' => now()]);
+                $this->activity->payment($session, ActivityEventEnum::PAYMENT_CLIENT_RETURNED, 'Page de résultat ouverte par le client.', [], ActivityLog::ACTOR_CLIENT);
             }
 
             return $session;
@@ -65,6 +69,7 @@ class PaymentSyncService
 
         // Set before the read, so the schedule plans the forced syncs
         $session->update(['returned_at' => now(), 'forced_syncs' => 0]);
+        $this->activity->payment($session, ActivityEventEnum::PAYMENT_CLIENT_RETURNED, 'Page de résultat ouverte par le client.', [], ActivityLog::ACTOR_CLIENT);
 
         try {
             return $this->syncFromProvider($session);
@@ -168,6 +173,9 @@ class PaymentSyncService
         } catch (ApiException $e) {
             if ($e instanceof HyperswitchUncertainException || $e->getStatusCode() !== 404) {
                 $this->reschedule($session, $force);
+                if ($e instanceof HyperswitchUncertainException) {
+                    $this->activity->hyperswitchUnreachable("vérification du paiement {$session->reference}");
+                }
 
                 throw $e;
             }
@@ -386,6 +394,10 @@ class PaymentSyncService
         $session->loadMissing(['lead', 'creator']);
         $statusChanged = $session->status !== $previous;
 
+        if ($statusChanged) {
+            $this->logStatusChange($session, $previous, $payment);
+        }
+
         // An uncertain creation that did happen: the client gets the link now
         if ($previous === PaymentSessionStatusEnum::A_VERIFIER && $session->status === PaymentSessionStatusEnum::OUVERTE) {
             $this->linkSender->send($session);
@@ -410,6 +422,42 @@ class PaymentSyncService
 
         if ($statusChanged && $session->status === PaymentSessionStatusEnum::ECHOUEE && $payment) {
             $this->reportFailureToPlane($payment);
+        }
+    }
+
+    /**
+     * The journal entry of a status change (who noticed it: the user who
+     * refreshed, otherwise the system).
+     *
+     * @param  array<string, mixed>|null  $payment
+     */
+    protected function logStatusChange(PaymentSession $session, PaymentSessionStatusEnum $previous, ?array $payment): void
+    {
+        $details = [
+            'amount' => (string) $session->amount,
+            'provider_status' => $session->provider_status,
+            'payment_id' => $session->hyperswitch_payment_id,
+            'connector_transaction_id' => $session->connector_transaction_id,
+        ];
+        $wasUnconfirmed = $previous === PaymentSessionStatusEnum::A_VERIFIER;
+
+        [$event, $message, $extra] = match ($session->status) {
+            PaymentSessionStatusEnum::PAYEE => [ActivityEventEnum::PAYMENT_PAID, ActivityLogger::euros($session->amount).' reçus.', []],
+            PaymentSessionStatusEnum::ECHOUEE => [
+                ActivityEventEnum::PAYMENT_FAILED,
+                trim(($session->error_code ? "Code {$session->error_code} · " : '').($session->error_message ?: 'Paiement refusé')),
+                ['error_code' => $session->error_code, 'error_message' => $session->error_message],
+            ],
+            PaymentSessionStatusEnum::EXPIREE => [ActivityEventEnum::PAYMENT_EXPIRED, "Le client n'a pas payé avant l'expiration du lien.", ['expires_at' => $session->expires_at?->toIso8601String()]],
+            PaymentSessionStatusEnum::ANNULEE => $wasUnconfirmed && $payment === null
+                ? [ActivityEventEnum::PAYMENT_NOT_CREATED, "Hyperswitch n'a jamais reçu cette demande : un nouveau lien peut être envoyé.", []]
+                : [ActivityEventEnum::PAYMENT_LINK_CANCELLED, 'Paiement annulé chez Hyperswitch.', []],
+            PaymentSessionStatusEnum::OUVERTE => [ActivityEventEnum::PAYMENT_LINK_CONFIRMED, 'Le paiement existe bien chez Hyperswitch : le lien est envoyé au client.', []],
+            default => [null, null, []],
+        };
+
+        if ($event) {
+            $this->activity->payment($session, $event, $message, [...$details, ...$extra]);
         }
     }
 

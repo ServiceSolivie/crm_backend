@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityEventEnum;
 use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PaymentRefundStatusEnum;
 use App\Enums\PaymentSessionStatusEnum;
@@ -9,6 +10,7 @@ use App\Enums\PaymentSourceEnum;
 use App\Events\PaymentSessionUpdated;
 use App\Exceptions\ApiException;
 use App\Exceptions\HyperswitchUncertainException;
+use App\Models\ActivityLog;
 use App\Models\Lead;
 use App\Models\Payment;
 use App\Models\PaymentRefund;
@@ -48,7 +50,16 @@ class PaymentRefundService
         protected PaymentService $paymentService,
         protected LeadService $leadService,
         protected HyperswitchClient $hyperswitch,
+        protected ActivityLogger $activity,
     ) {}
+
+    /**
+     * Contract total before and after each refund completed in this
+     * request (refund id => [before, after]), for its journal entry.
+     *
+     * @var array<int, array{0: ?string, 1: ?string}>
+     */
+    protected array $totals = [];
 
     /**
      * Refund a paid session in full. Returns the refund: REUSSI (cancelled
@@ -59,27 +70,40 @@ class PaymentRefundService
      */
     public function create(PaymentSession $session, User $user, string $reason): PaymentRefund
     {
-        // Fail fast on the CRM's own data, before asking Hyperswitch
-        $this->ensureRefundable($session);
-        $this->ensurePaidAtHyperswitch($session);
+        try {
+            // Fail fast on the CRM's own data, before asking Hyperswitch
+            $this->ensureRefundable($session);
+            $this->ensurePaidAtHyperswitch($session);
 
-        $refund = DB::transaction(function () use ($session, $user, $reason) {
-            /** @var PaymentSession $locked */
-            $locked = $this->sessions->findForUpdate($session->id);
-            $payment = $this->ensureRefundable($locked);
+            $refund = DB::transaction(function () use ($session, $user, $reason) {
+                /** @var PaymentSession $locked */
+                $locked = $this->sessions->findForUpdate($session->id);
+                $payment = $this->ensureRefundable($locked);
 
-            return $this->refunds->create([
-                'payment_session_id' => $locked->id,
-                'payment_id' => $payment->id,
-                'hyperswitch_refund_id' => HyperswitchClient::generateRefundId(),
-                'amount' => $locked->amount,
-                'currency' => $locked->currency,
-                'status' => PaymentRefundStatusEnum::A_VERIFIER,
-                'reason' => $reason,
-                'next_sync_at' => now()->addSeconds(RefundSyncSchedule::CHECK_INTERVAL),
-                'requested_by' => $user->id,
-            ]);
-        });
+                return $this->refunds->create([
+                    'payment_session_id' => $locked->id,
+                    'payment_id' => $payment->id,
+                    'hyperswitch_refund_id' => HyperswitchClient::generateRefundId(),
+                    'amount' => $locked->amount,
+                    'currency' => $locked->currency,
+                    'status' => PaymentRefundStatusEnum::A_VERIFIER,
+                    'reason' => $reason,
+                    'next_sync_at' => now()->addSeconds(RefundSyncSchedule::CHECK_INTERVAL),
+                    'requested_by' => $user->id,
+                ]);
+            });
+        } catch (ValidationException $e) {
+            // Nothing was sent to Hyperswitch
+            $this->activity->payment($session, ActivityEventEnum::REFUND_BLOCKED, collect($e->errors())->flatten()->first(), ['reason' => $reason], $user);
+
+            throw $e;
+        }
+
+        $this->activity->payment($session, ActivityEventEnum::REFUND_REQUESTED, ActivityLogger::euros($refund->amount)." à rendre au client. Motif : {$reason}", [
+            'amount' => (string) $refund->amount,
+            'reason' => $reason,
+            'refund_id' => $refund->hyperswitch_refund_id,
+        ], $user);
 
         try {
             $result = $this->hyperswitch->createRefund(
@@ -93,6 +117,12 @@ class PaymentRefundService
             // Stays A_VERIFIER: the scheduled check reads it with its refund_id
             report($e);
 
+            $this->activity->payment($session, ActivityEventEnum::REFUND_UNCONFIRMED, "Hyperswitch n'a pas donné de réponse claire : le remboursement est à vérifier, sans le relancer.", [
+                'refund_id' => $refund->hyperswitch_refund_id,
+                'error' => mb_substr($e->getMessage(), 0, 300),
+            ], $user);
+            $this->activity->hyperswitchUnreachable("remboursement de {$session->reference}");
+
             return $refund->refresh();
         } catch (ApiException $e) {
             // Clear refusal (e.g. IR_19): nothing was created at Hyperswitch
@@ -104,6 +134,11 @@ class PaymentRefundService
                 'next_sync_at' => null,
             ]);
             $this->broadcast($session);
+
+            $this->activity->payment($session, ActivityEventEnum::REFUND_FAILED, mb_substr($e->getMessage(), 0, 400), [
+                'refund_id' => $refund->hyperswitch_refund_id,
+                'error_code' => $code,
+            ], $user);
 
             throw $e;
         }
@@ -179,6 +214,7 @@ class PaymentRefundService
             $body = $this->hyperswitch->retrieveRefund($refund->hyperswitch_refund_id, $force);
         } catch (HyperswitchUncertainException $e) {
             $this->reschedule($refund);
+            $this->activity->hyperswitchUnreachable('vérification du remboursement de '.($refund->paymentSession?->reference ?? $refund->hyperswitch_refund_id));
 
             throw $e;
         } catch (ApiException $e) {
@@ -238,7 +274,13 @@ class PaymentRefundService
             $attributes += ['next_sync_at' => RefundSyncSchedule::nextCheckAt($status, $attempts, $refund->created_at, $now)];
         }
 
+        $wasFollowed = $refund->next_sync_at !== null;
         $refund->update($attributes);
+
+        // Logged once, when the automatic checks end (not at each manual check afterwards)
+        if ($wasFollowed && $refund->isPending() && $refund->next_sync_at === null) {
+            $this->logFollowUpStopped($refund);
+        }
 
         if ($status === PaymentRefundStatusEnum::REUSSI) {
             $this->completeRefund($refund);
@@ -279,6 +321,7 @@ class PaymentRefundService
             }
             $lead->update(['expected_revenue' => $newTotal]);
         }
+        $this->totals[$refund->id] = [$previousTotal, $newTotal];
 
         $this->paymentService->recalculatePaymentStatus($lead);
 
@@ -326,10 +369,31 @@ class PaymentRefundService
         }
 
         $attempts = $refund->sync_attempts + 1;
-        $refund->update([
-            'sync_attempts' => $attempts,
-            'next_sync_at' => RefundSyncSchedule::nextCheckAt($refund->status, $attempts, $refund->created_at, now()),
-        ]);
+        $next = RefundSyncSchedule::nextCheckAt($refund->status, $attempts, $refund->created_at, now());
+        $wasFollowed = $refund->next_sync_at !== null;
+        $refund->update(['sync_attempts' => $attempts, 'next_sync_at' => $next]);
+
+        if ($wasFollowed && $next === null) {
+            $this->logFollowUpStopped($refund);
+        }
+    }
+
+    /**
+     * The automatic checks are over while the refund is still not final:
+     * someone has to check it by hand ("Vérifier").
+     */
+    protected function logFollowUpStopped(PaymentRefund $refund): void
+    {
+        $session = $refund->paymentSession;
+        if (! $session) {
+            return;
+        }
+
+        $this->activity->payment($session, ActivityEventEnum::REFUND_FOLLOW_UP_STOPPED, "Le remboursement est toujours « {$refund->status->label()} » et n'est plus vérifié automatiquement : vérifiez-le à la main.", [
+            'refund_id' => $refund->hyperswitch_refund_id,
+            'status' => $refund->status->value,
+            'checks' => $refund->sync_attempts,
+        ], ActivityLog::ACTOR_SYSTEM);
     }
 
     /* ── Checks ──────────────────────────────────────────────────────── */
@@ -415,6 +479,7 @@ class PaymentRefundService
         $refund->loadMissing(['paymentSession.lead', 'requester']);
 
         $this->broadcast($refund->paymentSession);
+        $this->logStatusChange($refund);
 
         if ($notify && $refund->status->isFinal() && $refund->requester) {
             try {
@@ -422,6 +487,47 @@ class PaymentRefundService
             } catch (Throwable $e) {
                 report($e);
             }
+        }
+    }
+
+    /**
+     * The journal entry of a refund that changed status (who noticed it:
+     * the user who asked or checked, otherwise the system).
+     */
+    protected function logStatusChange(PaymentRefund $refund): void
+    {
+        $details = [
+            'amount' => (string) $refund->amount,
+            'refund_id' => $refund->hyperswitch_refund_id,
+            'connector_refund_id' => $refund->connector_refund_id,
+            'provider_status' => $refund->provider_status,
+        ];
+
+        [$event, $message, $extra] = match ($refund->status) {
+            PaymentRefundStatusEnum::REUSSI => [
+                ActivityEventEnum::REFUND_SUCCEEDED,
+                ActivityLogger::euros($refund->amount).' rendus au client'.(isset($this->totals[$refund->id]) ? sprintf(
+                    ' · total du contrat %s → %s',
+                    $this->totals[$refund->id][0] !== null ? $this->euros($this->totals[$refund->id][0]) : 'non défini',
+                    $this->totals[$refund->id][1] !== null ? $this->euros($this->totals[$refund->id][1]) : 'non défini',
+                ) : '').'.',
+                isset($this->totals[$refund->id]) ? ['previous_total' => $this->totals[$refund->id][0], 'new_total' => $this->totals[$refund->id][1]] : [],
+            ],
+            PaymentRefundStatusEnum::EN_ATTENTE => [
+                ActivityEventEnum::REFUND_PENDING,
+                'Crédit accepté, en attente de la remise bancaire.',
+                ['next_check_at' => $refund->next_sync_at?->toIso8601String()],
+            ],
+            PaymentRefundStatusEnum::ECHOUE => [
+                ActivityEventEnum::REFUND_FAILED,
+                $refund->error_message ?: 'Remboursement refusé.',
+                ['error_code' => $refund->error_code, 'error_message' => $refund->error_message],
+            ],
+            default => [null, null, []],
+        };
+
+        if ($event) {
+            $this->activity->payment($refund->paymentSession, $event, $message, [...$details, ...$extra]);
         }
     }
 

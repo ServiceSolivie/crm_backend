@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityEventEnum;
 use App\Enums\PaymentSessionStatusEnum;
 use App\Exceptions\ApiException;
 use App\Exceptions\HyperswitchUncertainException;
@@ -45,6 +46,7 @@ class PaymentSessionService
         protected PaymentLinkSender $linkSender,
         protected HyperswitchClient $hyperswitch,
         protected LeadService $leadService,
+        protected ActivityLogger $activity,
     ) {}
 
     public function listForLead(Lead $lead): Collection
@@ -74,6 +76,7 @@ class PaymentSessionService
         $token = PaymentResultPage::generateToken();
 
         $session = DB::transaction(fn () => $this->reserve($lead, $creator, $amount, $email, PaymentResultPage::hash($token)));
+        $startedAt = microtime(true);
 
         try {
             $result = $this->hyperswitch->createRedirectPayment(
@@ -90,8 +93,19 @@ class PaymentSessionService
             $session->update(['status' => PaymentSessionStatusEnum::A_VERIFIER]);
             report($e);
 
+            $this->activity->payment($session, ActivityEventEnum::PAYMENT_LINK_UNCONFIRMED, "Hyperswitch n'a pas donné de réponse claire : la demande est à vérifier avant d'envoyer un nouveau lien.", [
+                ...$this->creationDetails($session, $startedAt),
+                'error' => mb_substr($e->getMessage(), 0, 300),
+            ], $creator);
+            $this->activity->hyperswitchUnreachable("création du lien {$session->reference}");
+
             return $session->load('creator');
         } catch (Throwable $e) {
+            // Logged before the session is removed: its reference names the operation
+            $this->activity->payment($session, ActivityEventEnum::PAYMENT_LINK_REFUSED, mb_substr($e->getMessage(), 0, 400), [
+                ...$this->creationDetails($session, $startedAt),
+                'error_code' => $e instanceof ApiException && is_array($e->getErrors()) ? ($e->getErrors()['code'] ?? null) : null,
+            ], $creator);
             $this->sessions->delete($session->id);
 
             throw $e;
@@ -108,11 +122,33 @@ class PaymentSessionService
             'provider_payload' => $result['payload'],
         ]);
 
-        $this->ensureCreatedAsExpected($session, $result);
+        $this->ensureCreatedAsExpected($session, $result, $startedAt);
+
+        $this->activity->payment($session, ActivityEventEnum::PAYMENT_LINK_CREATED, ActivityLogger::euros($session->amount).' à payer par le client', [
+            ...$this->creationDetails($session, $startedAt),
+            'expires_at' => $session->expires_at?->toIso8601String(),
+            'provider_status' => $result['status'],
+        ], $creator);
 
         $this->linkSender->send($session);
 
         return $session->load('creator');
+    }
+
+    /**
+     * What the journal keeps about the creation of a payment request.
+     *
+     * @return array<string, mixed>
+     */
+    protected function creationDetails(PaymentSession $session, float $startedAt): array
+    {
+        return [
+            'amount' => (string) $session->amount,
+            'currency' => $session->currency,
+            'payment_id' => $session->hyperswitch_payment_id,
+            'client_email' => $session->client_email,
+            'duration_ms' => (int) ((microtime(true) - $startedAt) * 1000),
+        ];
     }
 
     /**
@@ -147,6 +183,8 @@ class PaymentSessionService
             'next_sync_at' => null,
             'force_pending' => false,
         ]);
+
+        $this->activity->payment($session, ActivityEventEnum::PAYMENT_LINK_CANCELLED, 'Annulé dans le CRM : un nouveau lien peut être envoyé.');
 
         return $session->load('creator');
     }
@@ -185,6 +223,7 @@ class PaymentSessionService
         } catch (Throwable $e) {
             report($e);
             $this->reportCheckFailureToPlane($open, $e);
+            $this->activity->hyperswitchUnreachable("vérification de {$open->reference} avant un nouveau lien");
 
             throw ValidationException::withMessages([
                 'session' => "Impossible de vérifier le paiement {$open->reference} auprès d'Hyperswitch pour le moment : réessayez dans quelques instants avant d'envoyer un nouveau lien.",
@@ -288,10 +327,17 @@ class PaymentSessionService
      *
      * @throws ApiException
      */
-    protected function ensureCreatedAsExpected(PaymentSession $session, array $result): void
+    protected function ensureCreatedAsExpected(PaymentSession $session, array $result, float $startedAt): void
     {
         if ($result['status'] === 'failed') {
             $session->update(['status' => PaymentSessionStatusEnum::ECHOUEE, 'next_sync_at' => null]);
+
+            $this->activity->payment($session, ActivityEventEnum::PAYMENT_LINK_REFUSED, 'Sogecommerce a refusé la création du paiement : '.($result['error_message'] ?? 'motif inconnu'), [
+                ...$this->creationDetails($session, $startedAt),
+                'error_code' => $result['error_code'],
+                'error_message' => $result['error_message'],
+                'provider_status' => $result['status'],
+            ]);
 
             throw new ApiException(
                 'Sogecommerce a refusé la création du paiement : '.($result['error_message'] ?? 'motif inconnu')
@@ -312,6 +358,12 @@ class PaymentSessionService
                 'status' => PaymentSessionStatusEnum::ANNULEE,
                 'next_sync_at' => null,
                 'error_message' => "Connecteur inattendu : {$result['connector']}",
+            ]);
+
+            $this->activity->payment($session, ActivityEventEnum::PAYMENT_LINK_REFUSED, "Paiement créé sur le mauvais connecteur ({$result['connector']}) : le lien n'a pas été envoyé.", [
+                ...$this->creationDetails($session, $startedAt),
+                'expected_connector' => $expected,
+                'connector' => $result['connector'],
             ]);
 
             throw new ApiException("Le paiement n'a pas été créé sur le bon connecteur ({$result['connector']}) : le lien n'a pas été envoyé.", 502);
