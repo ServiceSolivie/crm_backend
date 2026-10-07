@@ -463,6 +463,10 @@ class GoogleSheetLeadImporter
     /**
      * Every payload field without a dedicated Lead column yet — i.e. not
      * one of the known aliases and not pure webhook/envelope metadata.
+     * The script may group these under a nested `extra` object; it's
+     * flattened into the same level so the comment stays a flat
+     * field/value map. The source sheet (`feuille`) has no column of its
+     * own either, so it's recorded here too.
      *
      * @return array<string, mixed>
      */
@@ -474,9 +478,13 @@ class GoogleSheetLeadImporter
             ...array_values(self::WEBHOOK_FIELD_ALIASES),
         );
 
-        return collect($payload)
-            ->except($consumedKeys)
-            ->filter(fn ($value) => $value !== null && $value !== '')
+        $nested = is_array($payload['extra'] ?? null) ? $payload['extra'] : [];
+        $sheet = trim((string) ($payload['sheet'] ?? ''));
+
+        return collect(['feuille' => $sheet])
+            ->merge(collect($payload)->except([...$consumedKeys, 'extra']))
+            ->merge($nested)
+            ->filter(fn ($value) => $value !== null && $value !== '' && ! is_array($value))
             ->all();
     }
 
