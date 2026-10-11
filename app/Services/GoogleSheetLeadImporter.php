@@ -223,9 +223,14 @@ class GoogleSheetLeadImporter
      * contact can end up with more than one Lead row, each owned by a
      * different agent, rather than one row being silently handed around.
      *
+     * Before creating a lead for a row never seen before, any rows missing
+     * between the last row already in the CRM for that sheet and this one
+     * are read straight from the sheet and imported first (see
+     * catchUpMissingRows) — $catchUp is false for those recursive imports.
+     *
      * @return array{status: string, lead_id?: int}
      */
-    public function importFromWebhookPayload(array $payload): array
+    public function importFromWebhookPayload(array $payload, bool $catchUp = true): array
     {
         $get = function (string $concept) use ($payload) {
             foreach (self::WEBHOOK_FIELD_ALIASES[$concept] ?? [] as $alias) {
@@ -264,6 +269,11 @@ class GoogleSheetLeadImporter
 
         if ($existingByRow) {
             return $this->updateRowMatchedLead($existingByRow, $address, $postal, $extraFields, $submittedAt, $agentId);
+        }
+
+        $rowNumber = filter_var($payload['row'] ?? null, FILTER_VALIDATE_INT);
+        if ($catchUp && $sheetRowKey && $rowNumber) {
+            $this->catchUpMissingRows($sheetName, $rowNumber);
         }
 
         $existing = $this->findExisting($phone ?: null, $email ?: null);
@@ -370,6 +380,109 @@ class GoogleSheetLeadImporter
         $row = $payload['row'] ?? null;
 
         return ($sheet && $row) ? "{$sheet}:{$row}" : null;
+    }
+
+    /**
+     * Webhook calls can get lost (Apps Script quota, timeout, CRM down), so
+     * before creating the lead for row $row, compare it with the highest row
+     * of the same sheet already in the CRM (N). Anything other than N+1
+     * means rows N+1..$row-1 never made it in — those are read from the
+     * sheet and imported first, through the same webhook rules (dedupe,
+     * doublon flag, agent assignment). Nothing is caught up while the CRM
+     * has no row of that sheet yet, so a first call never pulls the whole
+     * sheet in. A sheet read failure is logged and never blocks the
+     * incoming row itself.
+     */
+    protected function catchUpMissingRows(string $sheetName, int $row): void
+    {
+        $columns = self::SHEET_COLUMNS[$sheetName] ?? null;
+        $lastImportedRow = $columns ? $this->lastImportedRow($sheetName) : null;
+
+        if (! $lastImportedRow || $row <= $lastImportedRow + 1) {
+            return;
+        }
+
+        $firstMissingRow = $lastImportedRow + 1;
+
+        try {
+            $rows = $this->sheetsService->getRows($sheetName, $firstMissingRow, $row - 1);
+        } catch (\Throwable $e) {
+            Log::warning('google_sheets_webhook: missing rows catch-up failed - sheet read error', [
+                'sheet' => $sheetName,
+                'rows' => "{$firstMissingRow}-".($row - 1),
+                'error' => $e->getMessage(),
+            ]);
+
+            return;
+        }
+
+        foreach ($rows as $index => $values) {
+            $missingRow = $firstMissingRow + $index;
+
+            try {
+                $result = $this->importFromWebhookPayload(
+                    $this->sheetRowToWebhookPayload($sheetName, $missingRow, $values, $columns),
+                    catchUp: false,
+                );
+
+                Log::info('google_sheets_webhook: missing row caught up', [
+                    'sheet' => $sheetName,
+                    'row' => $missingRow,
+                    'result' => $result,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('google_sheets_webhook: missing row catch-up failed', [
+                    'sheet' => $sheetName,
+                    'row' => $missingRow,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Highest row number of $sheetName already in the CRM, soft-deleted
+     * leads included — a lead deleted in the CRM must not come back
+     * through the catch-up.
+     */
+    protected function lastImportedRow(string $sheetName): ?int
+    {
+        $prefix = "{$sheetName}:";
+
+        $max = Lead::withTrashed()
+            ->where('sheet_row_key', 'like', "{$prefix}%")
+            ->selectRaw('MAX(CAST(SUBSTR(sheet_row_key, ?) AS UNSIGNED)) as max_row', [strlen($prefix) + 1])
+            ->value('max_row');
+
+        return $max ? (int) $max : null;
+    }
+
+    /**
+     * Turns a raw sheet row (fixed column positions, see SHEET_COLUMNS) into
+     * the same flat shape the Apps Script sends, so a caught-up row goes
+     * through exactly the same path as a live webhook call. Flagged
+     * action: "new" — the row really exists in the sheet, it isn't a
+     * field-only edit.
+     */
+    protected function sheetRowToWebhookPayload(string $sheetName, int $row, array $values, array $columns): array
+    {
+        $parsed = $this->parseRow($values, $columns);
+
+        $knownFields = ['name', 'email', 'phone', 'postal', 'address', 'source', 'agent', 'insurance_type', 'date'];
+
+        // `status` here is the Decennale company status, not the lead's.
+        $extras = collect($parsed)
+            ->except([...$knownFields, 'doublon'])
+            ->mapWithKeys(fn ($value, $key) => [$key === 'status' ? 'company_status' : $key => $value])
+            ->all();
+
+        return array_filter([
+            'sheet' => $sheetName,
+            'row' => $row,
+            'action' => 'new',
+            ...collect($parsed)->only($knownFields)->all(),
+            ...$extras,
+        ], fn ($value) => $value !== null && $value !== '');
     }
 
     /**
