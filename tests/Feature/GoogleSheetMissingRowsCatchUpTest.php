@@ -124,6 +124,56 @@ class GoogleSheetMissingRowsCatchUpTest extends TestCase
         $this->assertSame(['Lead:10', 'Lead:15'], Lead::orderBy('id')->pluck('sheet_row_key')->all());
     }
 
+    public function test_caught_up_detailles_row_uses_the_apps_script_field_names(): void
+    {
+        // Detailles columns: A source, B-D depend on source, E name, F email, G phone, H postal, I type, J agent, K doublon, L date
+        $sheet = $this->mockSheet();
+        $sheet->shouldReceive('getRows')->once()->with('Detailles', 21, 22)->andReturn([
+            ['tiktok', 'Non | false', 'Trop cher', 'AB-123-CD', 'Lina Haddad', 'lina@example.test', 'p:+33611111111', 'z:69003', 'Auto', '', '', ''],
+            ['facebook', 'SARL', '1 a 3 ans', 'Plomberie', 'Omar Ziani', '', 'p:+33622222222', '', 'RC Pro', '', '', ''],
+        ]);
+
+        $this->importer()->importFromWebhookPayload(['sheet' => 'Detailles', 'row' => 20, 'action' => 'new', 'full_name' => 'A B', 'phone' => '0600000020']);
+        $this->importer()->importFromWebhookPayload(['sheet' => 'Detailles', 'row' => 23, 'action' => 'new', 'full_name' => 'C D', 'phone' => '0600000023']);
+
+        $tiktok = Lead::where('sheet_row_key', 'Detailles:21')->first();
+        $this->assertSame(
+            ['assure_actuellement' => 'Non', 'raison_changement' => 'Trop cher', 'immatriculation' => 'AB-123-CD'],
+            json_decode($tiktok->comment, true),
+        );
+        $this->assertSame('+33611111111', $tiktok->phone);
+        $this->assertSame('lina@example.test', $tiktok->email);
+        $this->assertSame('69003', $tiktok->city);
+
+        $rcPro = Lead::where('sheet_row_key', 'Detailles:22')->first();
+        $this->assertSame(
+            ['type_entreprise' => 'SARL', 'anciennete' => '1 a 3 ans', 'description' => 'Plomberie'],
+            json_decode($rcPro->comment, true),
+        );
+    }
+
+    public function test_caught_up_decennale_row_carries_the_apps_script_extras(): void
+    {
+        $sheet = $this->mockSheet();
+        $sheet->shouldReceive('getRows')->once()->with('Decennale', 6, 6)->andReturn([
+            ['fb', 'Artisan', 'Professionnel', 'SARL', 'Plomberie', '1-5', 'Societe Test', '< 100k',
+                'Karim Bouzid', 'p:+33633333333', 'karim@example.test', '12 rue de Test', 'z:31000', '', '', 'SARA BENALI', '', '', ''],
+        ]);
+        $agent = User::factory()->create(['name' => 'Sara Benali']);
+
+        $this->importer()->importFromWebhookPayload(['sheet' => 'Decennale', 'row' => 5, 'action' => 'new', 'full_name' => 'A B', 'phone' => '0600000005']);
+        $this->importer()->importFromWebhookPayload(['sheet' => 'Decennale', 'row' => 7, 'action' => 'new', 'full_name' => 'C D', 'phone' => '0600000007']);
+
+        $lead = Lead::where('sheet_row_key', 'Decennale:6')->first();
+        $this->assertSame([
+            'statut' => 'Artisan', 'destinataire' => 'Professionnel', 'forme_juridique' => 'SARL', 'secteur_activite' => 'Plomberie',
+            'nombre_salaries' => '1-5', 'nom_societe' => 'Societe Test', 'chiffre_affaires' => '< 100k',
+        ], json_decode($lead->comment, true));
+        $this->assertSame('DECENNALE', $lead->insurance_type->value);
+        $this->assertSame('12 rue de Test', $lead->address);
+        $this->assertSame($agent->id, $lead->assigned_to);
+    }
+
     public function test_deleted_lead_row_is_not_brought_back(): void
     {
         $sheet = $this->mockSheet();

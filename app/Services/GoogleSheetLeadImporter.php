@@ -207,6 +207,46 @@ class GoogleSheetLeadImporter
     protected const ENVELOPE_NOISE_KEYS = ['spreadsheet_id', 'spreadsheet_name', 'sent_at'];
 
     /**
+     * Column (1 = A) of each payload field per sheet — a copy of the Apps
+     * Script's WH_MAP, so caught-up rows are read exactly like the script
+     * reads them. Keep both in sync when a sheet's columns move.
+     */
+    protected const WEBHOOK_SHEET_MAP = [
+        'Lead' => [
+            'source' => 1, 'full_name' => 2, 'email' => 3, 'phone' => 4, 'postal' => 5,
+            'insurance_type' => 6, 'address' => null, 'agent' => 7, 'date' => 9,
+        ],
+        'Detailles' => [
+            'source' => 1, 'full_name' => 5, 'email' => 6, 'phone' => 7, 'postal' => 8,
+            'insurance_type' => 9, 'address' => null, 'agent' => 10, 'date' => 12,
+        ],
+        'Decennale' => [
+            'source' => 1, 'full_name' => 9, 'phone' => 10, 'email' => 11, 'address' => 12, 'postal' => 13,
+            'insurance_type' => null, 'fixed_type' => 'Décennale', 'agent' => 16, 'date' => 19,
+            'extra' => [
+                'statut' => 2, 'destinataire' => 3, 'forme_juridique' => 4, 'secteur_activite' => 5,
+                'nombre_salaries' => 6, 'nom_societe' => 7, 'chiffre_affaires' => 8,
+            ],
+        ],
+    ];
+
+    /** The Apps Script's WH_SOURCES. */
+    protected const WEBHOOK_SOURCES = [
+        'fb' => 'Facebook', 'ig' => 'Facebook', 'facebook' => 'Facebook', 'instagram' => 'Facebook', 'meta' => 'Facebook',
+        'tiktok' => 'TikTok', 'tt' => 'TikTok',
+        'google' => 'Google', 'ads' => 'Google', 'google_ads' => 'Google',
+        'snapchat' => 'Snapchat', 'snap' => 'Snapchat',
+    ];
+
+    /** The Apps Script's WH_DETAILLES_BCD: field names for Detailles columns B, C, D. */
+    protected const DETAILLES_BCD = [
+        'snapchat' => ['assure_actuellement', 'raison_changement', 'delai_souscription'],
+        'tiktok' => ['assure_actuellement', 'raison_changement', 'immatriculation'],
+        'facebook/auto' => ['assure_actuellement', 'raison_changement', 'delai_souscription'],
+        'facebook/rc pro' => ['type_entreprise', 'anciennete', 'description'],
+    ];
+
+    /**
      * Ingest a single webhook call from the Apps Script. Unlike the baseline
      * seed (which reads a fixed column position per sheet), this works
      * from an arbitrary flat JSON object: known fields (via the alias map
@@ -395,8 +435,8 @@ class GoogleSheetLeadImporter
      */
     protected function catchUpMissingRows(string $sheetName, int $row): void
     {
-        $columns = self::SHEET_COLUMNS[$sheetName] ?? null;
-        $lastImportedRow = $columns ? $this->lastImportedRow($sheetName) : null;
+        $map = self::WEBHOOK_SHEET_MAP[$sheetName] ?? null;
+        $lastImportedRow = $map ? $this->lastImportedRow($sheetName) : null;
 
         if (! $lastImportedRow || $row <= $lastImportedRow + 1) {
             return;
@@ -421,7 +461,7 @@ class GoogleSheetLeadImporter
 
             try {
                 $result = $this->importFromWebhookPayload(
-                    $this->sheetRowToWebhookPayload($sheetName, $missingRow, $values, $columns),
+                    $this->sheetRowToWebhookPayload($sheetName, $missingRow, $values, $map),
                     catchUp: false,
                 );
 
@@ -458,31 +498,77 @@ class GoogleSheetLeadImporter
     }
 
     /**
-     * Turns a raw sheet row (fixed column positions, see SHEET_COLUMNS) into
-     * the same flat shape the Apps Script sends, so a caught-up row goes
-     * through exactly the same path as a live webhook call. Flagged
-     * action: "new" — the row really exists in the sheet, it isn't a
-     * field-only edit.
+     * Turns a raw sheet row into exactly the payload the Apps Script's
+     * WH_payload() builds for it — same columns (WEBHOOK_SHEET_MAP = its
+     * WH_MAP), same source normalisation, same Detailles B/C/D naming — so
+     * a caught-up lead is indistinguishable from one the script sent. The
+     * only gap: the script's `doublon` comes from the row's orange
+     * background, which the values API can't see; the field is ignored
+     * here anyway (see WEBHOOK_META_KEYS).
      */
-    protected function sheetRowToWebhookPayload(string $sheetName, int $row, array $values, array $columns): array
+    protected function sheetRowToWebhookPayload(string $sheetName, int $row, array $values, array $map): array
     {
-        $parsed = $this->parseRow($values, $columns);
+        $field = fn (?int $col) => $col ? $this->cleanSheetValue($values[$col - 1] ?? null) : '';
+        $phoneField = fn (?int $col) => preg_replace('/^[pz]:\s*/i', '', $field($col));
 
-        $knownFields = ['name', 'email', 'phone', 'postal', 'address', 'source', 'agent', 'insurance_type', 'date'];
+        $source = $field($map['source']);
+        $source = self::WEBHOOK_SOURCES[Str::lower($source)] ?? $source;
 
-        // `status` here is the Decennale company status, not the lead's.
-        $extras = collect($parsed)
-            ->except([...$knownFields, 'doublon'])
-            ->mapWithKeys(fn ($value, $key) => [$key === 'status' ? 'company_status' : $key => $value])
-            ->all();
+        $type = $field($map['insurance_type']) ?: ($map['fixed_type'] ?? '');
 
-        return array_filter([
+        $payload = [
             'sheet' => $sheetName,
-            'row' => $row,
+            'row' => (string) $row,
+            'full_name' => $field($map['full_name']),
+            'phone' => $phoneField($map['phone']),
+            'email' => $field($map['email']),
+            'postal' => $phoneField($map['postal']),
+            'address' => $field($map['address']),
+            'source' => $source,
+            'insurance_type' => $type,
+            'agent' => $field($map['agent']),
+            'date' => $field($map['date']) ?: now()->toIso8601ZuluString('millisecond'),
             'action' => 'new',
-            ...collect($parsed)->only($knownFields)->all(),
-            ...$extras,
-        ], fn ($value) => $value !== null && $value !== '');
+            'doublon' => false,
+            'old_agent' => '',
+        ];
+
+        foreach ($map['extra'] ?? [] as $key => $col) {
+            $payload[$key] = $field($col);
+        }
+
+        if ($sheetName === 'Detailles') {
+            $payload = array_merge($payload, $this->detaillesExtraFields($values, $source, $type));
+        }
+
+        return $payload;
+    }
+
+    /**
+     * WH_detaillesExtra(): what columns B/C/D mean depends on the source
+     * (and, for Facebook, on the insurance type). Unknown combination: the
+     * raw values are kept as col_b/col_c/col_d so nothing is lost.
+     */
+    protected function detaillesExtraFields(array $values, string $source, string $type): array
+    {
+        $src = Str::lower(trim($source));
+        $keys = self::DETAILLES_BCD["{$src}/".Str::lower(trim($type))] ?? self::DETAILLES_BCD[$src] ?? ['col_b', 'col_c', 'col_d'];
+
+        $withoutBoolean = fn ($value) => preg_replace('/\s*\|\s*(true|false)\s*$/i', '', $this->cleanSheetValue($value));
+
+        return [
+            $keys[0] => $withoutBoolean($values[1] ?? null),
+            $keys[1] => $withoutBoolean($values[2] ?? null),
+            $keys[2] => $withoutBoolean($values[3] ?? null),
+        ];
+    }
+
+    /**
+     * WH_nettoyer(): trimmed, with a leading "p:" / "z:"-style prefix removed.
+     */
+    protected function cleanSheetValue(mixed $value): string
+    {
+        return preg_replace('/^[a-zA-Z]:\s*/', '', trim((string) ($value ?? '')));
     }
 
     /**
