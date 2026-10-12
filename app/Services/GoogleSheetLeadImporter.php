@@ -207,6 +207,46 @@ class GoogleSheetLeadImporter
     protected const ENVELOPE_NOISE_KEYS = ['spreadsheet_id', 'spreadsheet_name', 'sent_at'];
 
     /**
+     * Column (1 = A) of each payload field per sheet — a copy of the Apps
+     * Script's WH_MAP, so caught-up rows are read exactly like the script
+     * reads them. Keep both in sync when a sheet's columns move.
+     */
+    protected const WEBHOOK_SHEET_MAP = [
+        'Lead' => [
+            'source' => 1, 'full_name' => 2, 'email' => 3, 'phone' => 4, 'postal' => 5,
+            'insurance_type' => 6, 'address' => null, 'agent' => 7, 'date' => 9,
+        ],
+        'Detailles' => [
+            'source' => 1, 'full_name' => 5, 'email' => 6, 'phone' => 7, 'postal' => 8,
+            'insurance_type' => 9, 'address' => null, 'agent' => 10, 'date' => 12,
+        ],
+        'Decennale' => [
+            'source' => 1, 'full_name' => 9, 'phone' => 10, 'email' => 11, 'address' => 12, 'postal' => 13,
+            'insurance_type' => null, 'fixed_type' => 'Décennale', 'agent' => 16, 'date' => 19,
+            'extra' => [
+                'statut' => 2, 'destinataire' => 3, 'forme_juridique' => 4, 'secteur_activite' => 5,
+                'nombre_salaries' => 6, 'nom_societe' => 7, 'chiffre_affaires' => 8,
+            ],
+        ],
+    ];
+
+    /** The Apps Script's WH_SOURCES. */
+    protected const WEBHOOK_SOURCES = [
+        'fb' => 'Facebook', 'ig' => 'Facebook', 'facebook' => 'Facebook', 'instagram' => 'Facebook', 'meta' => 'Facebook',
+        'tiktok' => 'TikTok', 'tt' => 'TikTok',
+        'google' => 'Google', 'ads' => 'Google', 'google_ads' => 'Google',
+        'snapchat' => 'Snapchat', 'snap' => 'Snapchat',
+    ];
+
+    /** The Apps Script's WH_DETAILLES_BCD: field names for Detailles columns B, C, D. */
+    protected const DETAILLES_BCD = [
+        'snapchat' => ['assure_actuellement', 'raison_changement', 'delai_souscription'],
+        'tiktok' => ['assure_actuellement', 'raison_changement', 'immatriculation'],
+        'facebook/auto' => ['assure_actuellement', 'raison_changement', 'delai_souscription'],
+        'facebook/rc pro' => ['type_entreprise', 'anciennete', 'description'],
+    ];
+
+    /**
      * Ingest a single webhook call from the Apps Script. Unlike the baseline
      * seed (which reads a fixed column position per sheet), this works
      * from an arbitrary flat JSON object: known fields (via the alias map
@@ -223,9 +263,14 @@ class GoogleSheetLeadImporter
      * contact can end up with more than one Lead row, each owned by a
      * different agent, rather than one row being silently handed around.
      *
+     * Before creating a lead for a row never seen before, any rows missing
+     * between the last row already in the CRM for that sheet and this one
+     * are read straight from the sheet and imported first (see
+     * catchUpMissingRows) — $catchUp is false for those recursive imports.
+     *
      * @return array{status: string, lead_id?: int}
      */
-    public function importFromWebhookPayload(array $payload): array
+    public function importFromWebhookPayload(array $payload, bool $catchUp = true): array
     {
         $get = function (string $concept) use ($payload) {
             foreach (self::WEBHOOK_FIELD_ALIASES[$concept] ?? [] as $alias) {
@@ -264,6 +309,11 @@ class GoogleSheetLeadImporter
 
         if ($existingByRow) {
             return $this->updateRowMatchedLead($existingByRow, $address, $postal, $extraFields, $submittedAt, $agentId);
+        }
+
+        $rowNumber = filter_var($payload['row'] ?? null, FILTER_VALIDATE_INT);
+        if ($catchUp && $sheetRowKey && $rowNumber) {
+            $this->catchUpMissingRows($sheetName, $rowNumber);
         }
 
         $existing = $this->findExisting($phone ?: null, $email ?: null);
@@ -370,6 +420,155 @@ class GoogleSheetLeadImporter
         $row = $payload['row'] ?? null;
 
         return ($sheet && $row) ? "{$sheet}:{$row}" : null;
+    }
+
+    /**
+     * Webhook calls can get lost (Apps Script quota, timeout, CRM down), so
+     * before creating the lead for row $row, compare it with the highest row
+     * of the same sheet already in the CRM (N). Anything other than N+1
+     * means rows N+1..$row-1 never made it in — those are read from the
+     * sheet and imported first, through the same webhook rules (dedupe,
+     * doublon flag, agent assignment). Nothing is caught up while the CRM
+     * has no row of that sheet yet, so a first call never pulls the whole
+     * sheet in. A sheet read failure is logged and never blocks the
+     * incoming row itself.
+     */
+    protected function catchUpMissingRows(string $sheetName, int $row): void
+    {
+        $map = self::WEBHOOK_SHEET_MAP[$sheetName] ?? null;
+        $lastImportedRow = $map ? $this->lastImportedRow($sheetName) : null;
+
+        if (! $lastImportedRow || $row <= $lastImportedRow + 1) {
+            return;
+        }
+
+        $firstMissingRow = $lastImportedRow + 1;
+
+        try {
+            $rows = $this->sheetsService->getRows($sheetName, $firstMissingRow, $row - 1);
+        } catch (\Throwable $e) {
+            Log::warning('google_sheets_webhook: missing rows catch-up failed - sheet read error', [
+                'sheet' => $sheetName,
+                'rows' => "{$firstMissingRow}-".($row - 1),
+                'error' => $e->getMessage(),
+            ]);
+
+            return;
+        }
+
+        foreach ($rows as $index => $values) {
+            $missingRow = $firstMissingRow + $index;
+
+            try {
+                $result = $this->importFromWebhookPayload(
+                    $this->sheetRowToWebhookPayload($sheetName, $missingRow, $values, $map),
+                    catchUp: false,
+                );
+
+                Log::info('google_sheets_webhook: missing row caught up', [
+                    'sheet' => $sheetName,
+                    'row' => $missingRow,
+                    'result' => $result,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('google_sheets_webhook: missing row catch-up failed', [
+                    'sheet' => $sheetName,
+                    'row' => $missingRow,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Highest row number of $sheetName already in the CRM, soft-deleted
+     * leads included — a lead deleted in the CRM must not come back
+     * through the catch-up.
+     */
+    protected function lastImportedRow(string $sheetName): ?int
+    {
+        $prefix = "{$sheetName}:";
+
+        $max = Lead::withTrashed()
+            ->where('sheet_row_key', 'like', "{$prefix}%")
+            ->selectRaw('MAX(CAST(SUBSTR(sheet_row_key, ?) AS UNSIGNED)) as max_row', [strlen($prefix) + 1])
+            ->value('max_row');
+
+        return $max ? (int) $max : null;
+    }
+
+    /**
+     * Turns a raw sheet row into exactly the payload the Apps Script's
+     * WH_payload() builds for it — same columns (WEBHOOK_SHEET_MAP = its
+     * WH_MAP), same source normalisation, same Detailles B/C/D naming — so
+     * a caught-up lead is indistinguishable from one the script sent. The
+     * only gap: the script's `doublon` comes from the row's orange
+     * background, which the values API can't see; the field is ignored
+     * here anyway (see WEBHOOK_META_KEYS).
+     */
+    protected function sheetRowToWebhookPayload(string $sheetName, int $row, array $values, array $map): array
+    {
+        $field = fn (?int $col) => $col ? $this->cleanSheetValue($values[$col - 1] ?? null) : '';
+        $phoneField = fn (?int $col) => preg_replace('/^[pz]:\s*/i', '', $field($col));
+
+        $source = $field($map['source']);
+        $source = self::WEBHOOK_SOURCES[Str::lower($source)] ?? $source;
+
+        $type = $field($map['insurance_type']) ?: ($map['fixed_type'] ?? '');
+
+        $payload = [
+            'sheet' => $sheetName,
+            'row' => (string) $row,
+            'full_name' => $field($map['full_name']),
+            'phone' => $phoneField($map['phone']),
+            'email' => $field($map['email']),
+            'postal' => $phoneField($map['postal']),
+            'address' => $field($map['address']),
+            'source' => $source,
+            'insurance_type' => $type,
+            'agent' => $field($map['agent']),
+            'date' => $field($map['date']) ?: now()->toIso8601ZuluString('millisecond'),
+            'action' => 'new',
+            'doublon' => false,
+            'old_agent' => '',
+        ];
+
+        foreach ($map['extra'] ?? [] as $key => $col) {
+            $payload[$key] = $field($col);
+        }
+
+        if ($sheetName === 'Detailles') {
+            $payload = array_merge($payload, $this->detaillesExtraFields($values, $source, $type));
+        }
+
+        return $payload;
+    }
+
+    /**
+     * WH_detaillesExtra(): what columns B/C/D mean depends on the source
+     * (and, for Facebook, on the insurance type). Unknown combination: the
+     * raw values are kept as col_b/col_c/col_d so nothing is lost.
+     */
+    protected function detaillesExtraFields(array $values, string $source, string $type): array
+    {
+        $src = Str::lower(trim($source));
+        $keys = self::DETAILLES_BCD["{$src}/".Str::lower(trim($type))] ?? self::DETAILLES_BCD[$src] ?? ['col_b', 'col_c', 'col_d'];
+
+        $withoutBoolean = fn ($value) => preg_replace('/\s*\|\s*(true|false)\s*$/i', '', $this->cleanSheetValue($value));
+
+        return [
+            $keys[0] => $withoutBoolean($values[1] ?? null),
+            $keys[1] => $withoutBoolean($values[2] ?? null),
+            $keys[2] => $withoutBoolean($values[3] ?? null),
+        ];
+    }
+
+    /**
+     * WH_nettoyer(): trimmed, with a leading "p:" / "z:"-style prefix removed.
+     */
+    protected function cleanSheetValue(mixed $value): string
+    {
+        return preg_replace('/^[a-zA-Z]:\s*/', '', trim((string) ($value ?? '')));
     }
 
     /**
