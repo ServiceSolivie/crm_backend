@@ -10,6 +10,7 @@ use App\Models\Lead;
 use App\Models\Team;
 use App\Models\User;
 use App\Repositories\Contracts\TeamRepositoryInterface;
+use App\Support\LeadStatusCatalog;
 use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -70,7 +71,7 @@ class TeamRepository extends BaseRepository implements TeamRepositoryInterface
             'members_count' => $this->membersCount($teamId),
             'leads' => [
                 'total' => $totalLeads,
-                'by_status' => $this->fillStatusCounts(LeadStatusEnum::values(), $leadsByStatus),
+                'by_status' => $this->fillStatusCounts(app(LeadStatusCatalog::class)->codes(), $leadsByStatus),
                 'conversion_rate' => $totalLeads > 0 ? round(($validatedLeads / $totalLeads) * 100, 2) : 0.0,
             ],
             'appointments' => [

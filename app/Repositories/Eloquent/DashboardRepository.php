@@ -11,6 +11,7 @@ use App\Models\Appointment;
 use App\Models\Lead;
 use App\Models\Payment;
 use App\Repositories\Contracts\DashboardRepositoryInterface;
+use App\Support\LeadStatusCatalog;
 use Carbon\Carbon;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
@@ -126,7 +127,7 @@ class DashboardRepository implements DashboardRepositoryInterface
             ->pluck('aggregate', 'insurance_type');
 
         return [
-            'by_status' => $this->fillCounts(LeadStatusEnum::values(), $byStatus),
+            'by_status' => $this->fillCounts(app(LeadStatusCatalog::class)->codes(), $byStatus),
             'by_insurance_type' => $this->fillCounts(InsuranceTypeEnum::values(), $byInsuranceType),
         ];
     }

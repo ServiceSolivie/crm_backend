@@ -4,8 +4,8 @@ namespace App\Http\Requests\Lead;
 
 use App\Enums\ClientTypeEnum;
 use App\Enums\InsuranceTypeEnum;
-use App\Enums\LeadStatusEnum;
 use App\Rules\ReviewStatusAllowed;
+use App\Rules\ValidLeadStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -38,7 +38,7 @@ class StoreLeadRequest extends FormRequest
             'company_employee_count' => ['nullable', 'string', 'max:255'],
             'company_name' => ['nullable', 'string', 'max:255'],
             'company_annual_revenue' => ['nullable', 'string', 'max:255'],
-            'status' => ['sometimes', Rule::in(LeadStatusEnum::values()), new ReviewStatusAllowed],
+            'status' => ['sometimes', new ValidLeadStatus, new ReviewStatusAllowed],
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
             'team_id' => ['nullable', 'integer', 'exists:teams,id'],
             'comment' => ['nullable', 'string'],
