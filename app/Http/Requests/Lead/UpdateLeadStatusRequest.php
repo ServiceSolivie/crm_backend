@@ -2,10 +2,9 @@
 
 namespace App\Http\Requests\Lead;
 
-use App\Enums\LeadStatusEnum;
 use App\Rules\ReviewStatusAllowed;
+use App\Rules\ValidLeadStatus;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateLeadStatusRequest extends FormRequest
 {
@@ -20,7 +19,7 @@ class UpdateLeadStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', Rule::in(LeadStatusEnum::values()), new ReviewStatusAllowed],
+            'status' => ['required', new ValidLeadStatus, new ReviewStatusAllowed],
             'comment' => ['nullable', 'string'],
             // Optional: the contract total normally comes with the first payment
             'expected_revenue' => [

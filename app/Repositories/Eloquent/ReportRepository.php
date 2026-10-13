@@ -14,6 +14,7 @@ use App\Models\Lead;
 use App\Models\Team;
 use App\Models\User;
 use App\Repositories\Contracts\ReportRepositoryInterface;
+use App\Support\LeadStatusCatalog;
 use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -188,9 +189,12 @@ class ReportRepository implements ReportRepositoryInterface
             ->pluck('aggregate', 'status')
             ->map(fn ($n) => (int) $n);
 
+        // Custom statuses count in the stage they were placed in
+        $catalog = app(LeadStatusCatalog::class);
         $byStage = [];
-        foreach (LeadStatusEnum::cases() as $status) {
-            $byStage[$status->stage()] = ($byStage[$status->stage()] ?? 0) + ($byStatus[$status->value] ?? 0);
+        foreach ($catalog->codes() as $code) {
+            $stage = $catalog->stage($code);
+            $byStage[$stage] = ($byStage[$stage] ?? 0) + ($byStatus[$code] ?? 0);
         }
 
         $total = (int) $byStatus->sum();

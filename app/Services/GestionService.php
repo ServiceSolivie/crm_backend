@@ -187,7 +187,7 @@ class GestionService
                 'last_name' => $lead->last_name,
                 'phone' => $lead->phone,
                 'insurance_type' => $lead->insurance_type?->value,
-                'status' => $lead->status->value,
+                'status' => $lead->status_code,
                 'dvc_status' => $lead->dvc_status?->value,
                 'agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,
                 'status_since' => $lead->status_since ? \Illuminate\Support\Carbon::parse($lead->status_since)->toIso8601String() : $lead->updated_at?->toIso8601String(),

@@ -3,7 +3,7 @@
 namespace App\Filters;
 
 use App\Enums\AppointmentStatusEnum;
-use App\Enums\LeadStatusEnum;
+use App\Support\LeadStatusCatalog;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -37,7 +37,7 @@ class LeadFilter extends QueryFilter
     {
         $statuses = [];
         foreach ($this->values($value) as $stage) {
-            $statuses = [...$statuses, ...LeadStatusEnum::valuesForStage($stage)];
+            $statuses = [...$statuses, ...app(LeadStatusCatalog::class)->codesForStage($stage)];
         }
 
         // Unknown stage → no match rather than silently ignoring the filter

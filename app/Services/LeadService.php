@@ -137,7 +137,7 @@ class LeadService extends BaseService
 
         $lead->statusHistories()->create([
             'from_status' => null,
-            'to_status' => $lead->status,
+            'to_status' => $lead->status_code,
             'changed_by' => $creator->id,
             'comment' => 'Lead created',
         ]);
@@ -238,8 +238,13 @@ class LeadService extends BaseService
      * Move a lead to a new status, recording the transition in the
      * status history.
      */
-    public function updateStatus(Lead $lead, LeadStatusEnum $status, User $changedBy, ?string $comment = null, ?string $expectedRevenue = null, ?array $meta = null): Lead
+    public function updateStatus(Lead $lead, LeadStatusEnum|string $status, User $changedBy, ?string $comment = null, ?string $expectedRevenue = null, ?array $meta = null): Lead
     {
+        // A custom status has no enum case: $status is then null and none of
+        // the rules below, all written for named statuses, concerns it
+        $code = $status instanceof LeadStatusEnum ? $status->value : $status;
+        $status = LeadStatusEnum::tryFrom($code);
+        $fromCode = $lead->status_code;
         $fromStatus = $lead->status;
 
         // Gestion and Validé need the client's signed DVC in the dossier
@@ -256,7 +261,7 @@ class LeadService extends BaseService
         // Payments are independent of the pipeline: changing status never
         // touches them. Validé only records when the lead was validated, and
         // can set the contract total when no payment gave it yet.
-        $changes = ['status' => $status->value];
+        $changes = ['status' => $code];
 
         if ($status === LeadStatusEnum::VALIDE && $fromStatus !== LeadStatusEnum::VALIDE) {
             $changes['validated_at'] = now();
@@ -272,8 +277,8 @@ class LeadService extends BaseService
         $lead->update($changes);
 
         $lead->statusHistories()->create([
-            'from_status' => $fromStatus,
-            'to_status' => $status->value,
+            'from_status' => $fromCode,
+            'to_status' => $code,
             'changed_by' => $changedBy->id,
             'comment' => $comment,
             'meta' => $meta,
@@ -317,7 +322,7 @@ class LeadService extends BaseService
             try {
                 DB::transaction(fn () => match ($action) {
                     'assign' => $this->assign($lead, (int) $data['assigned_to'], $user),
-                    'status' => $this->updateStatus($lead, LeadStatusEnum::from($data['status']), $user, $data['comment'] ?? null),
+                    'status' => $this->updateStatus($lead, $data['status'], $user, $data['comment'] ?? null),
                     'delete' => $this->deleteLead($lead),
                 });
                 $results[] = ['id' => $id, 'ok' => true, 'error' => null];

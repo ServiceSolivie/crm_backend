@@ -613,7 +613,7 @@ class GoogleSheetLeadImporter
             if (in_array($lead->status, self::REASSIGNMENT_LOCKED_STATUSES, true)) {
                 Log::info('google_sheets_webhook: reassignment ignored - lead past reassignable stage', [
                     'lead_id' => $lead->id,
-                    'status' => $lead->status->value,
+                    'status' => $lead->status_code,
                     'attempted_agent_id' => $agentId,
                 ]);
             } else {
