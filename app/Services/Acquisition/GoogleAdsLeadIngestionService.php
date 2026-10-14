@@ -30,6 +30,13 @@ class GoogleAdsLeadIngestionService
      */
     public function ingest(array $payload): void
     {
+        $this->assertAuthenticRequest($payload);
+
+        $this->ingestVerifiedPayload($payload);
+    }
+
+    public function ingestVerifiedPayload(array $payload): void
+    {
         $this->rejection = null;
 
         try {
@@ -44,10 +51,6 @@ class GoogleAdsLeadIngestionService
 
     protected function process(array $payload): void
     {
-        $expected = config('services.google_ads.webhook_key');
-        if (! $expected || ! hash_equals($expected, (string) $payload['google_key'])) {
-            throw $this->reject('invalid_key', 'Unauthorized.', 401);
-        }
 
         $source = LeadSource::query()->where('code', 'google_ads')->where('is_active', true)->first();
         if (! $source) {
@@ -186,6 +189,17 @@ class GoogleAdsLeadIngestionService
             'insurance_type' => $campaign?->insurance_type?->value,
             'gcl_id' => $payload['gcl_id'] ?? null,
         ];
+    }
+
+    public function assertAuthenticRequest(array $payload): void
+    {
+        $expected = config('services.google_ads.webhook_key');
+        if (! $expected || ! hash_equals($expected, (string) $payload['google_key'])) {
+            $e = $this->reject('invalid_key', 'Unauthorized.', 401);
+            $this->logRejection($payload, $e);
+
+            throw $e;
+        }
     }
 
     protected function newTouchpoint(array $payload, array $storedPayload, LeadSource $source, ?Campaign $campaign): LeadTouchpoint

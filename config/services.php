@@ -43,6 +43,10 @@ return [
 
     'google_ads' => [
         'webhook_key' => env('GOOGLE_ADS_WEBHOOK_KEY'),
+        'legacy_forward' => [
+            'enabled' => filter_var(env('GOOGLE_ADS_LEGACY_FORWARD_ENABLED', false), FILTER_VALIDATE_BOOL),
+            'url' => env('GOOGLE_ADS_LEGACY_FORWARD_URL'),
+        ],
     ],
 
     'acquisition' => [
