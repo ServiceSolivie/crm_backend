@@ -106,5 +106,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('payments:sync-hyperswitch')->everyFifteenSeconds()->withoutOverlapping(1);
         $schedule->command('appointments:send-today-reminders')->dailyAt('07:00');
         $schedule->command('appointments:send-due-reminders')->everyMinute()->withoutOverlapping();
+        // Activity journal: operations with no activity for longer than the retention (12 months)
+        $schedule->command('activity-logs:prune')->dailyAt('03:30');
     })
     ->create();

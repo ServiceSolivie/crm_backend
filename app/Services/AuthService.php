@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityEventEnum;
 use App\Exceptions\ApiException;
 use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
@@ -12,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
-    public function __construct(protected UserRepositoryInterface $users) {}
+    public function __construct(protected UserRepositoryInterface $users, protected ActivityLogger $activity) {}
 
     /** Failed attempts allowed per e-mail + IP before the login is locked */
     public const MAX_LOGIN_ATTEMPTS = 4;
@@ -37,6 +38,7 @@ class AuthService
 
         if (RateLimiter::tooManyAttempts($key, self::MAX_LOGIN_ATTEMPTS)) {
             $seconds = RateLimiter::availableIn($key);
+            $this->logAttempt($credentials['email'], ActivityEventEnum::AUTH_LOGIN_BLOCKED, "Trop de tentatives : connexion bloquée pendant {$seconds} secondes.", $ip, 'locked', $this->users->findBy('email', $credentials['email']));
 
             throw new ApiException(
                 "Trop de tentatives de connexion. Réessayez dans {$seconds} secondes.",
@@ -50,6 +52,7 @@ class AuthService
 
         if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             RateLimiter::hit($key, self::LOGIN_LOCK_SECONDS);
+            $this->logAttempt($credentials['email'], ActivityEventEnum::AUTH_LOGIN_FAILED, $user ? 'Mot de passe incorrect.' : 'Adresse e-mail inconnue.', $ip, 'failed', $user);
 
             throw new ApiException('These credentials do not match our records.', 401, [
                 'attempts_left' => max(0, self::MAX_LOGIN_ATTEMPTS - RateLimiter::attempts($key)),
@@ -59,10 +62,13 @@ class AuthService
         RateLimiter::clear($key);
 
         if (! $user->is_active) {
+            $this->logAttempt($credentials['email'], ActivityEventEnum::AUTH_LOGIN_BLOCKED, 'Compte désactivé : connexion refusée.', $ip, 'deactivated', $user);
             throw new ApiException('This account has been deactivated.', 403);
         }
 
         $token = $user->createToken($credentials['device_name'] ?? 'api')->plainTextToken;
+
+        $this->activity->auth($user->email, ActivityEventEnum::AUTH_LOGIN, 'Connexion réussie.', ['device' => $credentials['device_name'] ?? null], $user);
 
         return ['user' => $user, 'token' => $token];
     }
@@ -73,6 +79,26 @@ class AuthService
     public function logout(User $user): void
     {
         $user->currentAccessToken()?->delete();
+
+        $this->activity->auth($user->email, ActivityEventEnum::AUTH_LOGOUT, 'Déconnexion.', [], $user);
+    }
+
+    /**
+     * A refused login in the activity journal, at most once a minute for
+     * the same e-mail, address and reason (a wrong password typed five
+     * times is one entry).
+     */
+    protected function logAttempt(string $email, ActivityEventEnum $event, string $message, string $ip, string $kind, ?User $user = null): void
+    {
+        if (! $this->activity->allowed("login-{$kind}|".Str::lower(trim($email)).'|'.$ip, 60)) {
+            return;
+        }
+
+        if ($user) {
+            $this->activity->auth($user->email, $event, $message, [], $user, authenticated: false);
+        } else {
+            $this->activity->unknownAccount($email, $event, $message);
+        }
     }
 
     public function updateProfile(User $user, array $data): User
@@ -103,5 +129,7 @@ class AuthService
                 $data['password']
             ),
         ]);
+
+        $this->activity->auth($user->email, ActivityEventEnum::AUTH_PASSWORD_CHANGED, "Mot de passe modifié par l'utilisateur.", [], $user);
     }
 }
