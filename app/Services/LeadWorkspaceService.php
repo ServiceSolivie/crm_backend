@@ -155,7 +155,7 @@ class LeadWorkspaceService
                 'can_open' => $canOpen,
                 'reference' => $lead->reference,
                 'name' => trim("{$lead->first_name} {$lead->last_name}"),
-                'status' => $lead->status->value,
+                'status' => $lead->status_code,
                 'insurance_type' => $lead->insurance_type?->value,
                 'assigned_agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,
                 'created_at' => $lead->created_at?->toIso8601String(),
@@ -184,8 +184,8 @@ class LeadWorkspaceService
         foreach ($lead->statusHistories()->with('changedBy')->get() as $h) {
             $items->push(['type' => 'status', 'id' => $h->id, 'at' => $h->created_at, 'user' => $person($h->changedBy),
                 'data' => [
-                    'from' => $h->from_status?->value,
-                    'to' => $h->to_status?->value,
+                    'from' => $h->from_status_code,
+                    'to' => $h->to_status_code,
                     'comment' => $h->comment,
                     'meta' => $h->meta,
                 ]]);

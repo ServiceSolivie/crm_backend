@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\LeadStatusEnum;
 use App\Filters\LeadFilter;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Lead\AssignLeadRequest;
@@ -51,7 +50,7 @@ class LeadController extends Controller
             'last_name' => $lead->last_name,
             'phone' => $lead->phone,
             'email' => $lead->email,
-            'status' => $lead->status->value,
+            'status' => $lead->status_code,
             'insurance_type' => $lead->insurance_type?->value,
             'assigned_agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,
         ])->values());
@@ -208,11 +207,9 @@ class LeadController extends Controller
     {
         $this->authorize('updateStatus', $lead);
 
-        $status = LeadStatusEnum::from($request->validated('status'));
-
         $lead = $this->leadService->updateStatus(
             $lead,
-            $status,
+            $request->validated('status'),
             $request->user(),
             $request->validated('comment'),
             $request->validated('expected_revenue'),

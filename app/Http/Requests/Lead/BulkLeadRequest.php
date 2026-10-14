@@ -4,6 +4,7 @@ namespace App\Http\Requests\Lead;
 
 use App\Enums\LeadStatusEnum;
 use App\Rules\ReviewStatusAllowed;
+use App\Rules\ValidLeadStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -27,7 +28,7 @@ class BulkLeadRequest extends FormRequest
             'status' => [
                 'required_if:action,status',
                 'nullable',
-                Rule::in(LeadStatusEnum::values()),
+                new ValidLeadStatus,
                 // Validation needs a revenue per lead: done one lead at a time
                 Rule::notIn([LeadStatusEnum::VALIDE->value]),
                 new ReviewStatusAllowed,

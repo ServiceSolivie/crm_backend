@@ -116,7 +116,7 @@ class TeamLeaderController extends Controller
                 'id' => $lead->id,
                 'reference' => $lead->reference,
                 'name' => trim(($lead->first_name ?? '') . ' ' . ($lead->last_name ?? '')),
-                'status' => $lead->status,
+                'status' => $lead->status_code,
                 'assigned_agent' => $lead->assignedAgent ? [
                     'id' => $lead->assignedAgent->id,
                     'name' => $lead->assignedAgent->name,

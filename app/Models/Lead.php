@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\LeadStatusCast;
 use App\Enums\AppointmentStatusEnum;
 use App\Enums\ClientTypeEnum;
 use App\Enums\DvcStatusEnum;
@@ -10,6 +11,7 @@ use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PaymentStatusEnum;
 use App\Repositories\Contracts\PaymentRepositoryInterface;
+use App\Support\LeadStatusCatalog;
 use App\Traits\Filterable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -75,7 +77,8 @@ class Lead extends Model
             'birth_date' => 'date',
             'insurance_type' => InsuranceTypeEnum::class,
             'client_type' => ClientTypeEnum::class,
-            'status' => LeadStatusEnum::class,
+            // The system status, or null for a custom one (see status_code)
+            'status' => LeadStatusCast::class,
             'lead_submitted_at' => 'datetime',
             'expected_revenue' => 'decimal:2',
             'payment_status' => PaymentStatusEnum::class,
@@ -186,6 +189,20 @@ class Lead extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(LeadDocument::class);
+    }
+
+    /**
+     * The status as stored, system or custom. `status` gives the enum case
+     * for the rules; this gives the code for display and filters.
+     */
+    public function getStatusCodeAttribute(): ?string
+    {
+        return $this->attributes['status'] ?? null;
+    }
+
+    public function getStatusLabelAttribute(): ?string
+    {
+        return app(LeadStatusCatalog::class)->label($this->status_code);
     }
 
     /**

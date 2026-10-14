@@ -32,8 +32,8 @@ class LeadResource extends BaseResource
             'company_employee_count' => $this->company_employee_count,
             'company_name' => $this->company_name,
             'company_annual_revenue' => $this->company_annual_revenue,
-            'status' => $this->status->value,
-            'status_label' => $this->status->label(),
+            'status' => $this->status_code,
+            'status_label' => $this->status_label,
             'comment' => $this->comment,
             'is_doublon' => $this->is_doublon,
             'doublon_of' => $this->whenLoaded('doublonOf', fn () => $this->doublonOf ? [
