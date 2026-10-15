@@ -19,9 +19,17 @@ class AuthController extends Controller
     {
         $result = $this->authService->login($request->validated(), (string) $request->ip());
 
+        // Password accepted but the machine must prove itself first: no session yet
+        if ($result['token'] === null) {
+            return $this->success(['device' => $result['device']], 'Machine verification required');
+        }
+
         return $this->success([
             'user' => new UserResource($result['user']),
             'token' => $result['token'],
+            'device' => $result['device'],
+            // The next "remember this machine" mark, when the PIN was skipped
+            'device_mark' => $result['device_mark'],
         ], 'Login successful');
     }
 
