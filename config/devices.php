@@ -39,4 +39,8 @@ return [
     // Waiting requests one user may leave: stops a password holder flooding the list
     'max_pending_per_user' => 5,
 
+    // After a PIN check, the browser is remembered this many days: the next
+    // logins skip the PIN until then (the countdown is not extended by them)
+    'remember_days' => 30,
+
 ];

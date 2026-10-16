@@ -32,13 +32,15 @@ class DeviceLoginController extends Controller
 
         $result = $this->devices->verify($data['ticket'], $data, $request->ip());
 
+        // The PIN was checked: the browser is remembered for the next logins
         if ($result['token'] === null) {
-            return $this->success(['verified' => true], 'Machine verified');
+            return $this->success(['verified' => true, 'device_mark' => $result['mark']], 'Machine verified');
         }
 
         return $this->success([
             'user' => new UserResource($result['user']),
             'token' => $result['token'],
+            'device_mark' => $result['mark'],
         ], 'Login successful');
     }
 

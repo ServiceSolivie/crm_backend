@@ -21,6 +21,7 @@ use App\Repositories\Contracts\PaymentRepositoryInterface;
 use App\Repositories\Contracts\PaymentSessionRepositoryInterface;
 use App\Repositories\Contracts\ReportRepositoryInterface;
 use App\Repositories\Contracts\TeamRepositoryInterface;
+use App\Repositories\Contracts\TrustedDeviceRepositoryInterface;
 use App\Repositories\Contracts\UserRepositoryInterface;
 use App\Repositories\Contracts\VaultAuditLogRepositoryInterface;
 use App\Repositories\Eloquent\ActivityOperationRepository;
@@ -42,6 +43,7 @@ use App\Repositories\Eloquent\PaymentRepository;
 use App\Repositories\Eloquent\PaymentSessionRepository;
 use App\Repositories\Eloquent\ReportRepository;
 use App\Repositories\Eloquent\TeamRepository;
+use App\Repositories\Eloquent\TrustedDeviceRepository;
 use App\Repositories\Eloquent\UserRepository;
 use App\Repositories\Eloquent\VaultAuditLogRepository;
 use Illuminate\Support\ServiceProvider;
@@ -71,6 +73,7 @@ class RepositoryServiceProvider extends ServiceProvider
         PartnerRepositoryInterface::class => PartnerRepository::class,
         CredentialRepositoryInterface::class => CredentialRepository::class,
         VaultAuditLogRepositoryInterface::class => VaultAuditLogRepository::class,
+        TrustedDeviceRepositoryInterface::class => TrustedDeviceRepository::class,
         PaymentRepositoryInterface::class => PaymentRepository::class,
         PaymentSessionRepositoryInterface::class => PaymentSessionRepository::class,
         PaymentRefundRepositoryInterface::class => PaymentRefundRepository::class,

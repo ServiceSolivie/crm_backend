@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
-    public function __construct(protected UserRepositoryInterface $users, protected ActivityLogger $activity) {}
+    public function __construct(protected UserRepositoryInterface $users, protected DeviceTrustService $devices, protected ActivityLogger $activity) {}
 
     /** Failed attempts allowed per e-mail + IP before the login is locked */
     public const MAX_LOGIN_ATTEMPTS = 4;
@@ -28,7 +28,15 @@ class AuthService
      * the same e-mail from the same IP, further attempts are refused (429)
      * for LOGIN_LOCK_SECONDS. A successful login resets the counter.
      *
-     * @return array{user: User, token: string}
+     * When the approved-machines restriction is on, the password alone gives
+     * no token: `device` then carries the ticket and the challenge the
+     * machine must sign (see DeviceTrustService). During the rehearsal the
+     * token is given as before and `device` only offers that second step.
+     *
+     * A browser of an approved machine whose PIN was checked less than
+     * `devices.remember_days` ago skips that second step (`device_mark`).
+     *
+     * @return array{user: User, token: ?string, device: ?array<string, mixed>, device_mark: ?string}
      *
      * @throws ApiException
      */
@@ -66,11 +74,32 @@ class AuthService
             throw new ApiException('This account has been deactivated.', 403);
         }
 
+        // A machine whose PIN was checked recently is remembered: no PIN this time
+        $remembered = $this->devices->rememberedLogin($user, $credentials['device_mark'] ?? null, $ip);
+
+        if ($remembered !== null) {
+            $name = $this->devices->enforcedFor($user) ? $remembered['device']->tokenName() : ($credentials['device_name'] ?? 'api');
+            $token = $user->createToken($name)->plainTextToken;
+
+            $this->activity->auth($user->email, ActivityEventEnum::AUTH_LOGIN, 'Connexion réussie (poste approuvé reconnu).', [
+                'device' => $credentials['device_name'] ?? null,
+                'machine' => $remembered['device']->label ?? 'Poste n° '.$remembered['device']->id,
+            ], $user);
+
+            return ['user' => $user, 'token' => $token, 'device' => null, 'device_mark' => $remembered['mark']];
+        }
+
+        $device = $this->devices->begin($user, $credentials['device_credential_id'] ?? null);
+
+        if ($device !== null && $this->devices->enforcedFor($user)) {
+            return ['user' => $user, 'token' => null, 'device' => $device, 'device_mark' => null];
+        }
+
         $token = $user->createToken($credentials['device_name'] ?? 'api')->plainTextToken;
 
         $this->activity->auth($user->email, ActivityEventEnum::AUTH_LOGIN, 'Connexion réussie.', ['device' => $credentials['device_name'] ?? null], $user);
 
-        return ['user' => $user, 'token' => $token];
+        return ['user' => $user, 'token' => $token, 'device' => $device, 'device_mark' => null];
     }
 
     /**

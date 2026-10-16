@@ -7,9 +7,12 @@ use App\Enums\TrustedDeviceStatusEnum;
 use App\Exceptions\ApiException;
 use App\Models\AppSetting;
 use App\Models\TrustedDevice;
+use App\Models\TrustedDeviceMark;
 use App\Models\User;
 use App\Notifications\DeviceApprovalRequestedNotification;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -295,7 +298,80 @@ class DeviceTrustService
             ? $user->createToken($device->tokenName())->plainTextToken
             : null;
 
-        return ['user' => $user, 'device' => $device, 'token' => $token];
+        return ['user' => $user, 'device' => $device, 'token' => $token, 'mark' => $this->issueMark($device)];
+    }
+
+    /* ── Remembering a machine between two PIN checks ───────────── */
+
+    /**
+     * A login that skips the PIN because this browser holds a valid mark of
+     * an approved machine. The mark is exchanged for a new one that keeps the
+     * same expiry: the PIN is asked again when it runs out.
+     *
+     * @return array{device: TrustedDevice, mark: string}|null null when the PIN step applies
+     */
+    public function rememberedLogin(User $user, ?string $mark, ?string $ip): ?array
+    {
+        if (! $mark || $this->mode() === DeviceRestrictionEnum::OFF || $this->isExempt($user)) {
+            return null;
+        }
+
+        $row = TrustedDeviceMark::with('device')->where('token_hash', hash('sha256', $mark))->first();
+
+        if (! $row || $row->expires_at->isPast()) {
+            return null;
+        }
+
+        // A mark that was already exchanged comes back: this browser's storage was
+        // copied. Every mark of the machine goes, the real PC proves itself with its PIN.
+        if ($row->used_at !== null) {
+            TrustedDeviceMark::where('trusted_device_id', $row->trusted_device_id)->delete();
+            Log::warning('trusted_device: a remembered-machine mark was used twice, marks cancelled', [
+                'device_id' => $row->trusted_device_id,
+                'user_id' => $user->id,
+                'ip' => $ip,
+            ]);
+
+            return null;
+        }
+
+        $device = $row->device;
+
+        if (! $device || ! $device->isApproved()) {
+            return null;
+        }
+
+        // Two logins racing with the same mark: only one gets it
+        if (! TrustedDeviceMark::whereKey($row->id)->whereNull('used_at')->update(['used_at' => now()])) {
+            return null;
+        }
+
+        $device->update(['last_used_at' => now(), 'last_used_by' => $user->id, 'last_ip' => $ip]);
+
+        return ['device' => $device, 'mark' => $this->issueMark($device, $row->expires_at)];
+    }
+
+    /**
+     * A new mark for this machine. Without an expiry it is a fresh PIN check:
+     * remembered for the configured number of days.
+     */
+    public function issueMark(TrustedDevice $device, ?Carbon $expiresAt = null): ?string
+    {
+        if (! $device->isApproved()) {
+            return null;
+        }
+
+        // Expired marks of the machine are no longer needed, even to recognise a copy
+        TrustedDeviceMark::where('trusted_device_id', $device->id)->where('expires_at', '<', now())->delete();
+
+        $plain = Str::random(64);
+        TrustedDeviceMark::create([
+            'trusted_device_id' => $device->id,
+            'token_hash' => hash('sha256', $plain),
+            'expires_at' => $expiresAt ?? now()->addDays((int) config('devices.remember_days')),
+        ]);
+
+        return $plain;
     }
 
     /* ── Sessions ───────────────────────────────────────────────── */
@@ -307,6 +383,9 @@ class DeviceTrustService
             'revoked_at' => now(),
             'revoked_reason' => $reason,
         ]);
+
+        // Its browsers are no longer remembered: if it is reactivated, the PIN comes first
+        TrustedDeviceMark::where('trusted_device_id', $device->id)->delete();
 
         $this->closeSessionsOf($device);
     }
