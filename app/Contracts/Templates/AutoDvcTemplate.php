@@ -145,7 +145,6 @@ class AutoDvcTemplate extends ContractTemplate
                     ['key' => 'installment_2_amount', 'label' => 'Échéance 2 — montant (€)', 'type' => 'number'],
                     ['key' => 'installment_2_date', 'label' => 'Échéance 2 — date', 'type' => 'date'],
                     ['key' => 'payment_mode', 'label' => 'Mode de paiement', 'type' => 'text'],
-                    ['key' => 'payment_platform', 'label' => 'Plateforme de paiement', 'type' => 'text'],
                 ],
             ],
         ];

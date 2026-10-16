@@ -741,10 +741,7 @@ $signatureImg = str_replace('\\', '/', public_path('images/contracts/moov-assur-
             <div class="field-label">Mode de paiement</div>
             <div class="field-value">{{ $v('payment_mode') }}&nbsp;</div>
         </td>
-        <td class="gr">
-            <div class="field-label">Plateforme de paiement</div>
-            <div class="field-value">{{ $v('payment_platform') }}&nbsp;</div>
-        </td>
+        <td class="gr"></td>
     </tr>
 </table>
 
