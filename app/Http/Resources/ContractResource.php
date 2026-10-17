@@ -16,6 +16,7 @@ class ContractResource extends BaseResource
             'reference' => $this->reference,
             'template_key' => $this->template_key,
             'version' => $this->version,
+            'dvc_type_version_id' => $this->dvc_type_version_id,
             'client_name' => $this->client_name,
             'form_data' => $this->data,
             'original_filename' => $this->original_filename,

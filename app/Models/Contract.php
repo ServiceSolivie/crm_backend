@@ -18,6 +18,7 @@ class Contract extends Model
         'reference',
         'template_key',
         'version',
+        'dvc_type_version_id',
         'lead_id',
         'client_name',
         'data',
@@ -40,6 +41,15 @@ class Contract extends Model
     public function lead(): BelongsTo
     {
         return $this->belongsTo(Lead::class);
+    }
+
+    /**
+     * The DVC schema version the contract was filled with (null for the
+     * contracts generated before DVC types existed).
+     */
+    public function dvcTypeVersion(): BelongsTo
+    {
+        return $this->belongsTo(DvcTypeVersion::class);
     }
 
     public function generator(): BelongsTo

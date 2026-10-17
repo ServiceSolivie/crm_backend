@@ -2,38 +2,65 @@
 
 namespace App\Services;
 
-use App\Contracts\Templates\ContractTemplate;
-use App\Contracts\Templates\ContractTemplateRegistry;
+use App\Enums\InsuranceTypeEnum;
 use App\Enums\PermissionEnum;
 use App\Exceptions\ApiException;
 use App\Models\Contract;
+use App\Models\DvcType;
+use App\Models\DvcTypeVersion;
 use App\Models\Lead;
 use App\Models\User;
 use App\Repositories\Contracts\ContractRepositoryInterface;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Support\Dvc\DvcFieldRules;
+use App\Support\Dvc\DvcPrefill;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
+/**
+ * Contracts are the generated DVCs. A template is an active DVC type, keyed
+ * "<insurance type>_dvc" (DvcType::templateKey()), whose form and PDF come
+ * from the JSON schema of its current version.
+ */
 class ContractService
 {
     public function __construct(
         protected ContractRepositoryInterface $contracts,
-        protected ContractTemplateRegistry $registry,
         protected LeadDvcStatus $dvcStatus,
+        protected DvcPdfRenderer $renderer,
+        protected DvcPrefill $prefill,
+        protected DvcFieldRules $fieldRules,
     ) {}
 
     /**
+     * The active DVC types an agent can pick, with the schema of their
+     * current version.
+     *
      * @return array<int, array<string, mixed>>
      */
     public function templates(): array
     {
-        return $this->registry->all()
-            ->map(fn (ContractTemplate $template) => $template->toArray())
-            ->values()
+        return DvcType::query()
+            ->with('currentVersion')
+            ->where('is_active', true)
+            ->whereNotNull('current_version_id')
+            ->orderBy('insurance_type')
+            ->get()
+            ->map(fn (DvcType $type) => [
+                'key' => $type->templateKey(),
+                'label' => $type->label,
+                'insurance_type' => $type->insurance_type->value,
+                'insurance_type_label' => $type->insurance_type->label(),
+                'filename_prefix' => $type->filename_prefix,
+                'version_id' => $type->currentVersion->id,
+                'version' => $type->currentVersion->version,
+                'schema' => $type->currentVersion->schema,
+            ])
             ->all();
     }
 
@@ -52,39 +79,52 @@ class ContractService
      */
     public function prefill(string $templateKey, ?Lead $lead, User $agent): array
     {
-        return $this->template($templateKey)->prefill($lead, $agent);
+        $type = $this->dvcType($templateKey);
+
+        return $this->prefill->values($type->currentVersion->dvcSchema(), $lead, $agent);
     }
 
     /**
-     * Render the template with the given data, store the PDF, and record
-     * the contract. Every generation creates a new file + row — previous
-     * versions are never touched.
+     * Validate the values against the DVC type's schema, render the PDF,
+     * store it and record the contract. Every generation creates a new file +
+     * row — previous versions are never touched.
+     *
+     * $versionId is the schema version the form was opened with: if the super
+     * admin published a new one meanwhile, the DVC still matches its form.
      */
-    public function generate(string $templateKey, array $data, ?Lead $lead, User $user): Contract
+    public function generate(string $templateKey, array $data, ?Lead $lead, User $user, ?int $versionId = null): Contract
     {
-        $template = $this->template($templateKey);
+        $type = $this->dvcType($templateKey);
+        $schemaVersion = $versionId !== null
+            ? DvcTypeVersion::query()->where('dvc_type_id', $type->id)->find($versionId)
+            : $type->currentVersion;
 
-        // Whitelist input to the template's declared fields.
-        $data = array_intersect_key($data, array_flip($template->fieldKeys()));
+        if (! $schemaVersion) {
+            throw new ApiException("Cette version du DVC n'existe pas pour ce type.", 422);
+        }
 
-        $clientName = trim(($data['first_name'] ?? '').' '.($data['last_name'] ?? '')) ?: 'Client';
+        $schema = $schemaVersion->dvcSchema();
 
-        return DB::transaction(function () use ($template, $data, $lead, $user, $clientName) {
-            $version = $this->contracts->countForLeadAndTemplate($lead?->id, $template->key()) + 1;
+        // Whitelist input to the schema's declared fields, then check them
+        $data = array_intersect_key($data, array_flip($schema->dataKeys()));
+
+        $validator = Validator::make($data, $this->fieldRules->rules($schema), [], $this->fieldRules->attributes($schema));
+        if ($validator->fails()) {
+            throw ValidationException::withMessages(
+                collect($validator->errors()->messages())->mapWithKeys(fn ($messages, $key) => ["data.{$key}" => $messages])->all(),
+            );
+        }
+
+        $clientName = trim(($data['first_name'] ?? '').' '.($data['last_name'] ?? ''))
+            ?: ($data['company_name'] ?? null)
+            ?: 'Client';
+
+        return DB::transaction(function () use ($type, $schemaVersion, $schema, $data, $lead, $user, $clientName) {
+            $version = $this->contracts->countForLeadAndTemplate($lead?->id, $type->templateKey()) + 1;
             $reference = $this->generateReference();
             $generatedAt = now();
 
-            $pdf = Pdf::loadView($template->view(), [
-                'broker' => config('contracts.broker'),
-                'authority' => config('contracts.authority'),
-                'mediation' => config('contracts.mediation'),
-                'data' => $data,
-                'reference' => $reference,
-                'version' => $version,
-                'generated_at' => $generatedAt,
-            ]);
-
-            $output = $pdf->output();
+            $output = $this->renderer->render($schema, $data, $reference, $version, $generatedAt);
 
             $disk = config('contracts.storage_disk', 'local');
             $path = config('contracts.storage_path', 'contracts')."/{$generatedAt->format('Y/m')}/{$reference}.pdf";
@@ -92,7 +132,7 @@ class ContractService
 
             $filename = sprintf(
                 '%s_%s_%s_v%d.pdf',
-                $template->filenamePrefix(),
+                $type->filename_prefix,
                 Str::slug($clientName) ?: 'client',
                 $generatedAt->format('Y-m-d'),
                 $version,
@@ -101,8 +141,9 @@ class ContractService
             /** @var Contract $contract */
             $contract = $this->contracts->create([
                 'reference' => $reference,
-                'template_key' => $template->key(),
+                'template_key' => $type->templateKey(),
                 'version' => $version,
+                'dvc_type_version_id' => $schemaVersion->id,
                 'lead_id' => $lead?->id,
                 'client_name' => $clientName,
                 'data' => $data,
@@ -174,15 +215,24 @@ class ContractService
         };
     }
 
-    protected function template(string $key): ContractTemplate
+    /**
+     * The active DVC type behind a template key ("auto_dvc" → AUTO).
+     */
+    protected function dvcType(string $templateKey): DvcType
     {
-        $template = $this->registry->find($key);
+        $insuranceType = str_ends_with($templateKey, '_dvc')
+            ? InsuranceTypeEnum::tryFrom(strtoupper(substr($templateKey, 0, -4)))
+            : null;
 
-        if (! $template) {
-            throw new ApiException("Unknown contract template: {$key}", 422);
+        $type = $insuranceType
+            ? DvcType::query()->with('currentVersion')->where('insurance_type', $insuranceType->value)->first()
+            : null;
+
+        if (! $type || ! $type->is_active || ! $type->currentVersion) {
+            throw new ApiException("Aucun DVC actif pour ce type : {$templateKey}", 422);
         }
 
-        return $template;
+        return $type;
     }
 
     protected function generateReference(): string

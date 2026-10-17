@@ -1,0 +1,208 @@
+{
+  "title": "Devoir de Conseil",
+  "subtitle": "Étude personnalisée des besoins de votre entreprise, réalisée conformément aux articles L.520-1 et R.520-1 du Code des assurances, afin de vous proposer la couverture décennale la mieux adaptée à votre activité.",
+  "sections": [
+    {
+      "type": "text",
+      "number": "I",
+      "title": "Le courtier conseil",
+      "paragraphs": [
+        "Ce contrat est commercialisé par la société **{{broker.name}}**, courtier d'assurance de catégorie B, immatriculée sous le numéro {{broker.rcs}}. Le siège social de la société est situé {{broker.address}}, {{broker.postal_code}} {{broker.city}}, {{broker.country}}."
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "conseiller",
+      "title": "Votre conseiller",
+      "level": 2,
+      "columns": 2,
+      "fields": [
+        { "key": "agent_name", "label": "Nom du conseiller", "type": "text", "prefill": "agent.name" },
+        { "key": "agent_phone", "label": "Ligne directe", "type": "text", "prefill": "agent.phone" },
+        { "key": "agent_email", "label": "Adresse e-mail", "type": "text", "prefill": "agent.email" },
+        { "key": "interview_date", "label": "Date de l'entretien", "type": "date", "prefill": "today" }
+      ]
+    },
+    { "type": "broker", "number": "II", "title": "Informations légales" },
+    {
+      "type": "text",
+      "number": "III",
+      "title": "Remarques importantes",
+      "paragraphs": [
+        "Nous attirons votre attention sur le fait que la fourniture d'une information complète et sincère sur l'activité de votre entreprise est une condition indispensable à la délivrance d'un conseil adapté. À défaut de réponse à une question, ou en cas de réponse incomplète ou erronée, la fiabilité et la pertinence de cette étude — et donc des solutions qui vous seront proposées — pourraient être compromises.",
+        "Vous reconnaissez avoir pris connaissance du contenu du présent document préalablement à l'adhésion au contrat d'assurance proposé, en avoir conservé un exemplaire, et avoir reçu une information détaillée sur l'étendue, la définition des risques et des garanties proposées.",
+        "Aussi précis que soient les informations et les conseils qui vous ont été donnés, il est très important que vous lisiez attentivement les notices de votre précontrat d'assurance qui vous seront remises au moment de votre adhésion. Ces notices constituent le document juridique contractuel exprimant les droits et obligations de l'assuré et de l'assureur.",
+        "Nous insistons sur l'importance de la précision et de la sincérité des réponses apportées dans la demande d'adhésion, notamment sur la nature exacte de l'activité exercée. **Une fausse déclaration intentionnelle entraîne la nullité du contrat et la déchéance de vos garanties.**",
+        "Conformément à la loi Informatique et Libertés du 6 janvier 1978 modifiée en 2004, vous bénéficiez d'un droit d'accès, de rectification et d'opposition aux informations qui vous concernent, que vous pouvez exercer en vous adressant au siège social de la société {{broker.name}}. Les données à caractère personnel recueillies sont nécessaires à la conclusion du présent contrat et pourront être utilisées par l'assureur et ses partenaires."
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "souscripteur",
+      "title": "L'entreprise souscriptrice",
+      "page_break_before": true,
+      "columns": 2,
+      "fields": [
+        { "key": "company_name", "label": "Raison sociale", "type": "text", "required": true, "prefill": "lead.company_name" },
+        { "key": "company_legal_form", "label": "Forme juridique", "type": "text", "prefill": "lead.company_legal_form" },
+        { "key": "siret", "label": "SIREN / SIRET", "type": "text" },
+        { "key": "company_creation_date", "label": "Date de création de l'entreprise", "type": "date" },
+        { "key": "address", "label": "Adresse du siège social", "type": "text", "width": "full", "prefill": "lead.address" },
+        { "key": "civilite", "label": "Civilité du dirigeant", "type": "select", "options": ["M.", "Mme", "Mlle"] },
+        { "key": "first_name", "label": "Prénom du dirigeant", "type": "text", "required": true, "prefill": "lead.first_name" },
+        { "key": "last_name", "label": "Nom du dirigeant", "type": "text", "required": true, "prefill": "lead.last_name" },
+        { "key": "birth_date", "label": "Date de naissance du dirigeant", "type": "date" },
+        { "key": "phone", "label": "Numéro de téléphone", "type": "text", "prefill": "lead.phone" },
+        { "key": "email", "label": "Adresse e-mail", "type": "text", "prefill": "lead.email" },
+        { "key": "company_employee_count", "label": "Nombre de salariés", "type": "text", "prefill": "lead.company_employee_count" },
+        { "key": "company_annual_revenue", "label": "Chiffre d'affaires annuel N-1", "type": "money", "min": 0, "prefill": "lead.company_annual_revenue" }
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "activite",
+      "title": "L'activité",
+      "level": 2,
+      "columns": 2,
+      "fields": [
+        { "key": "company_sector", "label": "Secteur d'activité", "type": "text", "prefill": "lead.company_sector" },
+        { "key": "qualifications", "label": "Qualifications professionnelles (Qualibat, RGE, ...)", "type": "text" },
+        { "key": "activity_description", "label": "Nature des travaux réalisés", "type": "textarea", "width": "full" },
+        { "key": "diploma_experience", "label": "Diplôme / formation du dirigeant", "type": "text" },
+        { "key": "experience_years", "label": "Années d'expérience dans l'activité", "type": "text" },
+        { "key": "subcontracting_share", "label": "Part de sous-traitance (%)", "type": "text" },
+        { "key": "intervention_area", "label": "Zone géographique d'intervention", "type": "text" }
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "antecedents",
+      "title": "Les antécédents",
+      "level": 2,
+      "columns": 2,
+      "fields": [
+        { "key": "previously_insured", "label": "Déjà assuré pour ce risque", "type": "select", "options": ["Oui", "Non"] },
+        { "key": "termination_reason", "label": "Motif de résiliation antérieure", "type": "text" },
+        { "key": "terminated_non_payment", "label": "Résilié pour non-paiement", "type": "select", "options": ["Oui", "Non"] },
+        { "key": "terminated_false_declaration", "label": "Résilié pour fausse déclaration", "type": "select", "options": ["Oui", "Non"] },
+        { "key": "judicial_receivership", "label": "Entreprise en redressement judiciaire", "type": "select", "options": ["Oui", "Non"] },
+        { "key": "claims_5y_count", "label": "Sinistres déclarés sur les 5 dernières années", "type": "text" },
+        { "key": "claims_5y_amount", "label": "Montant total des sinistres", "type": "money", "min": 0 },
+        { "key": "claims_5y_detail", "label": "Détail des sinistres", "type": "textarea", "width": "full" }
+      ]
+    },
+    {
+      "type": "garanties",
+      "key": "garanties",
+      "title": "Vos exigences et besoins",
+      "page_break_before": true,
+      "items": [
+        { "key": "g_rc_decennale", "label": "Responsabilité civile décennale (RCD)", "default_included": true },
+        { "key": "g_rc_pro", "label": "Responsabilité civile professionnelle" },
+        { "key": "g_rc_exploitation", "label": "Responsabilité civile d'exploitation" },
+        { "key": "g_bon_fonctionnement", "label": "Garantie de bon fonctionnement (2 ans)" },
+        { "key": "g_apres_travaux", "label": "Garantie après travaux" },
+        { "key": "g_defense", "label": "Défense pénale et recours" },
+        { "key": "g_gap", "label": "Garantie accident de la vie professionnelle (GAP)" },
+        { "key": "g_dommages_ouvrage", "label": "Dommages-ouvrage (si maître d'ouvrage)" }
+      ]
+    },
+    {
+      "type": "text",
+      "style": "info",
+      "paragraphs": [
+        "**Droit de renonciation.** Le présent contrat est souscrit par une entreprise pour les besoins de son activité professionnelle. La faculté de renonciation prévue à l'article L.112-2-1 du Code des assurances en cas de vente à distance est réservée aux personnes physiques agissant pour des besoins non professionnels ; elle ne s'applique donc pas au présent contrat."
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "tarification",
+      "title": "Tarification",
+      "columns": 2,
+      "fields": [
+        { "key": "formule", "label": "Formule conseillée", "type": "text" },
+        { "key": "compagnie", "label": "Compagnie partenaire", "type": "text" },
+        { "key": "effective_date", "label": "Date d'effet souhaitée", "type": "date" },
+        { "key": "echeancier", "label": "Échéancier", "type": "select", "options": ["Annuel", "Semestriel", "Trimestriel"] },
+        { "key": "prime_annuelle", "label": "Prime annuelle (taxes incluses)", "type": "money", "min": 0 },
+        { "key": "prime_mensuelle", "label": "Prime mensuelle (taxes incluses)", "type": "money", "min": 0 },
+        { "key": "frais_courtage", "label": "Frais de courtage (gestion et service inclus)", "type": "money", "min": 0 }
+      ]
+    },
+    {
+      "type": "text",
+      "paragraphs": [
+        "Le client reconnaît avoir pris connaissance du contenu du présent document préalablement à la signature du contrat d'assurance proposé ci-dessus."
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Rémunération du courtier",
+      "page_break_before": true,
+      "paragraphs": [
+        "Nous sommes rémunérés sur la base d'une commission incluse dans la prime d'assurance, et de frais de courtage ainsi que d'honoraires dont le montant vous est communiqué sur la facture qui vous est remise par ailleurs (article L.521-2-II-2°d du Code des assurances). Les honoraires de courtage sont acquis au cabinet dès la proposition d'une solution d'assurance. En cas de rétractation dérogatoire sur la proposition d'assurance, le remboursement se fera uniquement au prorata des acomptes versés aux compagnies."
+      ]
+    },
+    {
+      "type": "list",
+      "title": "Documents à fournir",
+      "intro": "Nous vous livrerons votre attestation d'assurance décennale définitive avant l'expiration du certificat provisoire, à condition que vous nous envoyiez rapidement l'ensemble des documents suivants :",
+      "items": [
+        "Les conditions particulières signées et paraphées",
+        "Un extrait Kbis de moins de 3 mois",
+        "Le relevé d'informations / historique de sinistralité décennale",
+        "Les justificatifs de qualification professionnelle (le cas échéant)",
+        "Le mandat SEPA signé",
+        "Le RIB",
+        "La copie recto-verso de la pièce d'identité du dirigeant",
+        "L'acompte selon les modalités convenues avec la compagnie"
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Avertissements importants",
+      "style": "info",
+      "page_break_before": true,
+      "paragraphs": [
+        "Les honoraires de courtage et frais de dossier sont prélevés automatiquement en paiement différé par carte bancaire ; en cas de rejet de paiement, le montant réclamé sera prélevé automatiquement dès approvisionnement de votre compte.",
+        "Après étude de vos documents par la compagnie d'assurance, il peut vous être demandé de fournir des documents supplémentaires avant la validation de votre dossier et l'envoi de l'attestation définitive.",
+        "En cas de non-réception des documents nécessaires à la validation de votre dossier avant l'expiration du certificat provisoire, votre contrat d'assurance décennale sera résilié.",
+        "En cas de réception de documents dont les informations ne sont pas conformes à ce que vous avez déclaré avant la prise de garantie provisoire, votre contrat sera résilié par la compagnie, ou un avenant vous sera proposé pour régulariser votre dossier.",
+        "En signant ce document, vous confirmez votre accord et attestez l'exactitude de l'ensemble de vos déclarations relatives à l'activité de votre entreprise, à sa sinistralité et à ses antécédents d'assurance.",
+        "Ce document n'est qu'un devis, accompagné d'autres documents précontractuels, et ne peut en aucun cas garantir que votre entreprise est assurée, même signé. Votre couverture ne devient effective qu'après acceptation de votre dossier par la compagnie et réception de votre attestation d'assurance.",
+        "En cas de fausse déclaration, le contrat sera résilié pour fausse déclaration ou nullité de contrat. Les modalités d'application du contrat et des garanties sont détaillées dans les dispositions particulières et générales."
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Autorisation de prélèvement",
+      "page_break_before": true,
+      "paragraphs": [
+        "Je soussigné(e), M./Mme {{first_name}} {{last_name}}, agissant en qualité de représentant de {{company_name}}, confirme accepter d'être prélevé(e), à réception de la facture, du règlement du compte de l'entreprise au titre des frais de dossier par carte bancaire. J'autorise le cabinet {{broker.name}} à débiter la somme de {{debit_amount}} à régler le {{installment_1_date}}."
+      ]
+    },
+    {
+      "type": "text",
+      "visible_if": "installment_2_amount",
+      "paragraphs": [
+        "Une seconde échéance de {{installment_2_amount}} sera réglée le {{installment_2_date}}."
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "paiement",
+      "title": "Paiement",
+      "level": 2,
+      "columns": 2,
+      "fields": [
+        { "key": "debit_amount", "label": "Montant autorisé au débit", "type": "money", "min": 0 },
+        { "key": "installment_1_amount", "label": "Échéance 1 — montant", "type": "money", "min": 0 },
+        { "key": "installment_1_date", "label": "Échéance 1 — date", "type": "date" },
+        { "key": "installment_2_amount", "label": "Échéance 2 — montant", "type": "money", "min": 0 },
+        { "key": "installment_2_date", "label": "Échéance 2 — date", "type": "date" },
+        { "key": "payment_mode", "label": "Mode de paiement", "type": "text", "default": "Lien de paiement envoyé par mail" },
+        { "key": "payment_platform", "label": "Plateforme de paiement", "type": "text" }
+      ]
+    }
+  ]
+}
