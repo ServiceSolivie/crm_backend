@@ -213,8 +213,7 @@
         { "key": "installment_1_date", "label": "Échéance 1 — date", "type": "date" },
         { "key": "installment_2_amount", "label": "Échéance 2 — montant", "type": "money", "min": 0 },
         { "key": "installment_2_date", "label": "Échéance 2 — date", "type": "date" },
-        { "key": "payment_mode", "label": "Mode de paiement", "type": "text", "default": "Lien de paiement envoyé par mail" },
-        { "key": "payment_platform", "label": "Plateforme de paiement", "type": "text" }
+        { "key": "payment_mode", "label": "Mode de paiement", "type": "text", "default": "Lien de paiement envoyé par mail" }
       ]
     }
   ]
