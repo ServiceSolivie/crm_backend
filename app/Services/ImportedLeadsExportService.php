@@ -17,6 +17,7 @@ use OpenSpout\Common\Entity\Style\Color;
 use OpenSpout\Common\Entity\Style\Style;
 use OpenSpout\Writer\AutoFilter;
 use OpenSpout\Writer\XLSX\Entity\SheetView;
+use OpenSpout\Writer\XLSX\Options;
 use OpenSpout\Writer\XLSX\Writer;
 
 /**
@@ -35,7 +36,8 @@ class ImportedLeadsExportService
 
     public const ORIGINS = ['all', 'google_sheets', 'file'];
 
-    public const PREVIEW_ROWS = 10;
+    /** How the stages are grouped on the screen: « Nouveau » is untouched, contact / follow-up / quote are in progress */
+    private const GROUPS = ['untouched' => 'Non traités', 'in_progress' => 'En cours', 'validated' => 'Validés', 'lost' => 'Perdus'];
 
     private const STAGES = ['new' => 'Nouveau', 'contact' => 'Contact', 'follow_up' => 'À relancer', 'quote' => 'Devis', 'won' => 'Validé', 'lost' => 'Perdu'];
 
@@ -145,6 +147,7 @@ class ImportedLeadsExportService
             'doublons' => (clone $query)->where('is_doublon', true)->count(),
             'statuses' => $statuses->all(),
             'stages' => $stages->all(),
+            'status_columns' => $this->statusColumns($statuses->pluck('code')->all()),
             'agents' => $this->byAgent($query),
             'sources' => $this->bySource($query),
             'insurances' => $this->byInsurance($query),
@@ -152,15 +155,44 @@ class ImportedLeadsExportService
     }
 
     /**
+     * The statuses found in the period, in the order of the agent table:
+     * by group, then by stage, then in the catalog's order (system statuses
+     * first, custom ones after).
+     *
+     * @param  array<int, string>  $codes
+     * @return array<int, array{code: string, label: string, stage: ?string, stage_label: ?string, group: string}>
+     */
+    public function statusColumns(array $codes): array
+    {
+        $groupOrder = array_flip(array_keys(self::GROUPS));
+        $stageOrder = array_flip(array_keys(self::STAGES));
+        $codeOrder = array_flip($this->statuses->codes());
+
+        return collect($codes)
+            ->map(fn (string $code) => [
+                'code' => $code,
+                'label' => (string) $this->statuses->label($code),
+                'stage' => $stage = $this->statuses->stage($code),
+                'stage_label' => self::STAGES[$stage] ?? null,
+                'group' => $this->group($stage),
+            ])
+            ->sort(fn (array $a, array $b) => [$groupOrder[$a['group']], $stageOrder[$a['stage']] ?? 99, $codeOrder[$a['code']] ?? PHP_INT_MAX]
+                <=> [$groupOrder[$b['group']], $stageOrder[$b['stage']] ?? 99, $codeOrder[$b['code']] ?? PHP_INT_MAX])
+            ->values()
+            ->all();
+    }
+
+    /**
      * One row per agent who has imported leads of the period today (the
      * current agent: a reassigned lead counts for whoever has it now), then
-     * the leads nobody has. Biggest first.
+     * the leads nobody has. Biggest first. Each row also counts its leads
+     * per status (statuses: code => count).
      *
      * @return array<int, array<string, mixed>>
      */
     public function byAgent(Builder $query): array
     {
-        $rows = $this->stagesBy($query, 'assigned_to');
+        $rows = $this->stagesBy($query, 'assigned_to', withStatuses: true);
         $users = User::with('team:id,name')
             ->whereIn('id', $rows->keys()->filter()->all())
             ->get(['id', 'name', 'team_id'])
@@ -208,63 +240,50 @@ class ImportedLeadsExportService
     /**
      * Leads per value of $column, split by the stage of their current
      * status: untouched (still « Nouveau »), in progress (contact, follow-up,
-     * quote), validated, lost. Keyed by the value ('' when empty).
+     * quote), validated, lost. Keyed by the value ('' when empty). With
+     * $withStatuses, also the count per status.
      *
-     * @return Collection<string, array{received: int, untouched: int, in_progress: int, validated: int, lost: int, conversion: float}>
+     * @return Collection<string, array{received: int, untouched: int, in_progress: int, validated: int, lost: int, conversion: float, statuses?: array<string, int>}>
      */
-    protected function stagesBy(Builder $query, string $column): Collection
+    protected function stagesBy(Builder $query, string $column, bool $withStatuses = false): Collection
     {
         return (clone $query)->toBase()
             ->selectRaw("{$column} AS value_key, status, COUNT(*) AS total")
             ->groupBy($column, 'status')
             ->get()
             ->groupBy(fn ($row) => (string) $row->value_key)
-            ->map(function (Collection $rows) {
+            ->map(function (Collection $rows) use ($withStatuses) {
                 $counts = ['received' => 0, 'untouched' => 0, 'in_progress' => 0, 'validated' => 0, 'lost' => 0];
+                $statuses = [];
 
                 foreach ($rows as $row) {
                     $n = (int) $row->total;
                     $counts['received'] += $n;
-                    $counts[match ($this->statuses->stage((string) $row->status)) {
-                        'new' => 'untouched',
-                        'won' => 'validated',
-                        'lost' => 'lost',
-                        default => 'in_progress',
-                    }] += $n;
+                    $counts[$this->group($this->statuses->stage((string) $row->status))] += $n;
+                    $statuses[(string) $row->status] = $n;
                 }
 
-                return [...$counts, 'conversion' => $this->rate($counts['validated'], $counts['received'])];
+                return [
+                    ...$counts,
+                    'conversion' => $this->rate($counts['validated'], $counts['received']),
+                    ...($withStatuses ? ['statuses' => $statuses] : []),
+                ];
             });
+    }
+
+    protected function group(?string $stage): string
+    {
+        return match ($stage) {
+            'new' => 'untouched',
+            'won' => 'validated',
+            'lost' => 'lost',
+            default => 'in_progress',
+        };
     }
 
     protected function rate(int $part, int $total): float
     {
         return $total ? round($part / $total * 100, 1) : 0.0;
-    }
-
-    /**
-     * The first rows of the file, newest first, for the screen.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    public function preview(Builder $query): array
-    {
-        return $this->withDetails($query)
-            ->orderByDesc('leads.id')
-            ->limit(self::PREVIEW_ROWS)
-            ->get()
-            ->map(fn (Lead $lead) => [
-                'id' => $lead->id,
-                'reference' => $lead->reference,
-                'received_at' => $lead->created_at?->toIso8601String(),
-                'name' => trim("{$lead->first_name} {$lead->last_name}"),
-                'origin' => $this->origin($lead),
-                'status' => $lead->status_code,
-                'status_label' => $this->statuses->label($lead->status_code),
-                'agent' => $lead->assignedAgent?->name,
-                'insurance_type' => $lead->insurance_type?->value,
-            ])
-            ->all();
     }
 
     /**
@@ -280,7 +299,8 @@ class ImportedLeadsExportService
         $header = (new Style)->setFontBold()->setFontColor(Color::WHITE)->setBackgroundColor('4F46E5');
         $date = (new Style)->setFormat('dd/mm/yyyy hh:mm');
 
-        $writer = new Writer;
+        $options = new Options;
+        $writer = new Writer($options);
         $writer->openToFile($path);
 
         $sheet = $writer->getCurrentSheet();
@@ -303,34 +323,73 @@ class ImportedLeadsExportService
         $percent = (new Style)->setFormat('0.0%');
         $boldPercent = (new Style)->setFontBold()->setFormat('0.0%');
 
+        // "Par agent": Agent, Équipe, Reçus, then for each group its total and
+        // one column per status found in the period, then Conversion.
+        // Two header rows: the groups (merged over their columns), the statuses.
+        $columns = collect(self::GROUPS)->map(fn (string $label, string $group) => [
+            'label' => $label,
+            'statuses' => array_values(array_filter($summary['status_columns'], fn (array $s) => $s['group'] === $group)),
+        ]);
+
         $agents = $writer->addNewSheetAndMakeItCurrent();
         $agents->setName('Par agent');
-        $agents->setSheetView((new SheetView)->setFreezeRow(2));
-        foreach ([24, 18, 10, 12, 10, 10, 10, 12] as $i => $width) {
-            $agents->setColumnWidth($width, $i + 1);
+        $agents->setSheetView((new SheetView)->setFreezeRow(3));
+        $agents->setColumnWidth(24, 1);
+        $agents->setColumnWidth(18, 2);
+
+        $top = [new Cell\StringCell('Agent', $header), new Cell\StringCell('Équipe', $header), new Cell\StringCell('Reçus', $header)];
+        $sub = [new Cell\EmptyCell(null, $header), new Cell\EmptyCell(null, $header), new Cell\EmptyCell(null, $header)];
+        foreach ([0, 1, 2] as $col) {
+            $options->mergeCells($col, 1, $col, 2, 1);
         }
-        $writer->addRow(new Row(array_map(
-            fn (string $h) => new Cell\StringCell($h, $header),
-            ['Agent', 'Équipe', 'Reçus', 'Non traités', 'En cours', 'Validés', 'Perdus', 'Conversion'],
-        )));
-        $totals = ['received' => 0, 'untouched' => 0, 'in_progress' => 0, 'validated' => 0, 'lost' => 0];
-        foreach ($summary['agents'] as $agent) {
-            $writer->addRow(new Row([
-                $this->cell($agent['name'] ?? 'Non assigné', $date),
-                $this->cell($agent['team'], $date),
-                ...array_map(fn (string $k) => new Cell\NumericCell($agent[$k], null), array_keys($totals)),
-                new Cell\NumericCell($agent['conversion'] / 100, $percent),
-            ]));
-            foreach ($totals as $k => $v) {
-                $totals[$k] = $v + $agent[$k];
+        foreach ($columns as $group) {
+            $first = count($top);
+            $top[] = new Cell\StringCell($group['label'], $header);
+            $sub[] = new Cell\StringCell('Total', $header);
+            foreach ($group['statuses'] as $status) {
+                $top[] = new Cell\EmptyCell(null, $header);
+                $sub[] = new Cell\StringCell($status['group'] === 'in_progress' && $status['stage_label'] ? "{$status['label']} ({$status['stage_label']})" : $status['label'], $header);
+            }
+            if (count($top) - 1 > $first) {
+                $options->mergeCells($first, 1, count($top) - 1, 1, 1);
             }
         }
-        $writer->addRow(new Row([
-            new Cell\StringCell('Total', $bold),
-            new Cell\EmptyCell(null, null),
-            ...array_map(fn (int $v) => new Cell\NumericCell($v, $bold), array_values($totals)),
-            new Cell\NumericCell($this->rate($totals['validated'], $totals['received']) / 100, $boldPercent),
-        ]));
+        $options->mergeCells(count($top), 1, count($top), 2, 1);
+        $top[] = new Cell\StringCell('Conversion', $header);
+        $sub[] = new Cell\EmptyCell(null, $header);
+        for ($col = 3; $col < count($top); $col++) {
+            $agents->setColumnWidth(13, $col + 1);
+        }
+        $writer->addRow(new Row($top));
+        $writer->addRow(new Row($sub));
+
+        $line = function (array $agent, ?Style $style, ?Style $percentStyle) use ($writer, $columns, $date) {
+            $cells = [
+                new Cell\StringCell($agent['name'] ?? 'Non assigné', $style),
+                $this->cell($agent['team'] ?? null, $date),
+                new Cell\NumericCell($agent['received'], $style),
+            ];
+            foreach ($columns as $group => $definition) {
+                $cells[] = new Cell\NumericCell($agent[$group], $style);
+                foreach ($definition['statuses'] as $status) {
+                    $cells[] = new Cell\NumericCell($agent['statuses'][$status['code']] ?? 0, $style);
+                }
+            }
+            $cells[] = new Cell\NumericCell($agent['conversion'] / 100, $percentStyle);
+            $writer->addRow(new Row($cells));
+        };
+
+        $total = ['name' => 'Total', 'received' => 0, 'untouched' => 0, 'in_progress' => 0, 'validated' => 0, 'lost' => 0, 'statuses' => []];
+        foreach ($summary['agents'] as $agent) {
+            $line($agent, null, $percent);
+            foreach (['received', ...array_keys(self::GROUPS)] as $k) {
+                $total[$k] += $agent[$k];
+            }
+            foreach ($agent['statuses'] as $code => $n) {
+                $total['statuses'][$code] = ($total['statuses'][$code] ?? 0) + $n;
+            }
+        }
+        $line([...$total, 'conversion' => $this->rate($total['validated'], $total['received'])], $bold, $boldPercent);
 
         $resume = $writer->addNewSheetAndMakeItCurrent();
         $resume->setName('Résumé');
