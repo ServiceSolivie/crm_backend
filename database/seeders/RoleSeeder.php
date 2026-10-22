@@ -117,6 +117,7 @@ class RoleSeeder extends Seeder
         $agent = Role::findOrCreate(RoleEnum::AGENT->value);
         $agent->syncPermissions([
             PermissionEnum::LEADS_VIEW_ASSIGNED->value,
+            PermissionEnum::LEADS_CREATE->value,
             PermissionEnum::LEADS_UPDATE_STATUS->value,
 
             PermissionEnum::LEAD_NOTES_MANAGE->value,

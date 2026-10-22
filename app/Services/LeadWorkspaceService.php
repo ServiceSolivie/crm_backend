@@ -7,6 +7,7 @@ use App\Enums\LeadStatusEnum;
 use App\Enums\PermissionEnum;
 use App\Filters\LeadFilter;
 use App\Models\Appointment;
+use App\Models\DocumentType;
 use App\Models\Lead;
 use App\Models\User;
 use Carbon\Carbon;
@@ -123,23 +124,14 @@ class LeadWorkspaceService
      */
     public function duplicates(User $user, ?string $phone, ?string $email, ?int $excludeId = null): array
     {
-        $digits = substr(preg_replace('/\D+/', '', (string) $phone), -9);
-        $email = trim((string) $email);
+        $query = $this->leads->sameContact($phone, $email);
 
-        if (strlen($digits) < 8 && $email === '') {
+        if (! $query) {
             return [];
         }
 
-        $matches = Lead::query()
+        $matches = $query
             ->when($excludeId, fn (Builder $q) => $q->where('id', '!=', $excludeId))
-            ->where(function (Builder $q) use ($digits, $email) {
-                if (strlen($digits) >= 8) {
-                    $q->orWhereRaw('RIGHT('.$this->phoneDigitsSql().', 9) = ?', [$digits]);
-                }
-                if ($email !== '') {
-                    $q->orWhere('email', $email);
-                }
-            })
             ->with('assignedAgent:id,name')
             ->latest()
             ->limit(5)
@@ -227,7 +219,7 @@ class LeadWorkspaceService
         }
 
         if ($user->can(PermissionEnum::DOCUMENTS_VIEW->value)) {
-            $typeLabels = \App\Models\DocumentType::query()->pluck('label', 'name');
+            $typeLabels = DocumentType::query()->pluck('label', 'name');
 
             foreach ($lead->documents()->with('uploader')->get() as $d) {
                 $items->push(['type' => 'document', 'id' => $d->id, 'at' => $d->created_at, 'user' => $person($d->uploader),
@@ -348,6 +340,6 @@ class LeadWorkspaceService
      */
     protected function phoneDigitsSql(): string
     {
-        return "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '.', ''), '-', ''), '+', ''), '(', ''), ')', '')";
+        return LeadService::phoneDigitsSql();
     }
 }

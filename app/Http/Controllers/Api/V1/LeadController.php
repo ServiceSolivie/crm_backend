@@ -19,8 +19,8 @@ use App\Models\Lead;
 use App\Services\LeadService;
 use App\Services\LeadWorkspaceService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
 
 class LeadController extends Controller
 {
@@ -147,7 +147,7 @@ class LeadController extends Controller
     {
         $this->authorize('create', Lead::class);
 
-        $lead = $this->leadService->createLead($request->validated(), $request->user());
+        $lead = $this->leadService->createFromForm($request->validated(), $request->user());
 
         return $this->created(new LeadResource($lead), 'Lead created successfully');
     }
@@ -244,5 +244,4 @@ class LeadController extends Controller
 
         return $this->created(new LeadCallResource($call), 'Call logged successfully');
     }
-
 }
