@@ -33,7 +33,6 @@ class ImportedLeadsExportController extends Controller
             'file_name' => $range['file_name'],
             'origin' => $request->origin(),
             ...$this->exports->summary($query),
-            'preview' => $this->exports->preview($query),
         ]);
     }
 
