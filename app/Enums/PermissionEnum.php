@@ -45,6 +45,8 @@ enum PermissionEnum: string implements HasLabel
     case LEADS_SET_REVIEW_STATUS = 'leads.set_review_status';
     case LEADS_IMPORT = 'leads.import';
     case LEADS_EXPORT = 'leads.export';
+    // Imported leads of a period with their status, as Excel — super admin only
+    case LEADS_EXPORT_IMPORTED = 'leads.export_imported';
 
     // Lead notes & calls
     case LEAD_NOTES_MANAGE = 'lead_notes.manage';
@@ -146,6 +148,7 @@ enum PermissionEnum: string implements HasLabel
             self::LEADS_SET_REVIEW_STATUS => 'Appliquer les statuts de gestion (Validé, Call2, PDG, À corriger)',
             self::LEADS_IMPORT => 'Import leads',
             self::LEADS_EXPORT => 'Export leads',
+            self::LEADS_EXPORT_IMPORTED => 'Export imported leads with their status',
 
             self::LEAD_NOTES_MANAGE => 'Manage lead notes',
             self::LEAD_CALLS_MANAGE => 'Log lead calls',
