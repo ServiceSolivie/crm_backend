@@ -3,6 +3,7 @@
 namespace App\Filters;
 
 use App\Enums\AppointmentStatusEnum;
+use App\Enums\RoleEnum;
 use App\Support\LeadStatusCatalog;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
  *   GET /leads?team_id=3
  *   GET /leads?assigned_to=7               (accepts several values too)
  *   GET /leads?unassigned=1                (no agent)
- *   GET /leads?is_doublon=1
+ *   GET /leads?is_doublon=1                (super admin only, ignored for anyone else)
  *   GET /leads?dvc_status=SIGNE            (A_GENERER, EN_ATTENTE_SIGNATURE, SIGNE; several values too)
  *   GET /leads?payment_status=PAYE         (NON_PAYE, EN_ATTENTE, PARTIELLEMENT_PAYE, PAYE, REMBOURSE)
  *   GET /leads?due=today                   (open appointment today or overdue; due=overdue for overdue only)
@@ -82,8 +83,16 @@ class LeadFilter extends QueryFilter
         }
     }
 
+    /**
+     * Duplicates are for the super admin only: anyone else gets the list as
+     * if the filter wasn't there.
+     */
     protected function isDoublon(string $value): void
     {
+        if (! $this->request->user()?->hasRole(RoleEnum::SUPER_ADMIN->value)) {
+            return;
+        }
+
         $this->builder->where('is_doublon', filter_var($value, FILTER_VALIDATE_BOOLEAN));
     }
 

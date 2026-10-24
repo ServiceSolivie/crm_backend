@@ -42,6 +42,8 @@ class StoreLeadRequest extends FormRequest
             'assigned_to' => ['nullable', 'integer', 'exists:users,id'],
             'team_id' => ['nullable', 'integer', 'exists:teams,id'],
             'comment' => ['nullable', 'string'],
+            // First note, saved in the lead's notes
+            'note' => ['nullable', 'string', 'max:5000'],
         ];
     }
 }

@@ -27,11 +27,14 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     require __DIR__.'/api/v1/campaigns.php';
     require __DIR__.'/api/v1/lead-statuses.php';
     require __DIR__.'/api/v1/lead-imports.php';
+    require __DIR__.'/api/v1/lead-exports.php';
+    require __DIR__.'/api/v1/intake.php';
     require __DIR__.'/api/v1/payments.php';
     require __DIR__.'/api/v1/documents.php';
     require __DIR__.'/api/v1/document-requirements.php';
     require __DIR__.'/api/v1/team-leader.php';
     require __DIR__.'/api/v1/contracts.php';
+    require __DIR__.'/api/v1/dvc-types.php';
     require __DIR__.'/api/v1/notifications.php';
     require __DIR__.'/api/v1/webhooks.php';
     require __DIR__.'/api/v1/vault.php';

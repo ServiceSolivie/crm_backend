@@ -66,6 +66,7 @@ class ContractController extends Controller
             $request->validated('data'),
             $lead,
             $request->user(),
+            $request->validated('dvc_type_version_id'),
         );
 
         return $this->created(new ContractResource($contract), 'Contract generated successfully');

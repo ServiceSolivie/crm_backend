@@ -147,7 +147,7 @@ class LeadController extends Controller
     {
         $this->authorize('create', Lead::class);
 
-        $lead = $this->leadService->createLead($request->validated(), $request->user());
+        $lead = $this->leadService->createFromForm($request->validated(), $request->user());
 
         return $this->created(new LeadResource($lead), 'Lead created successfully');
     }

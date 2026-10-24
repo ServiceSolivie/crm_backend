@@ -1,0 +1,220 @@
+{
+  "title": "Devoir de Conseil",
+  "subtitle": "Étude personnalisée de vos besoins, réalisée conformément aux articles L.520-1 et R.520-1 du Code des assurances, afin de vous proposer le contrat le mieux adapté à votre situation.",
+  "hero_image": "auto-hero.jpg",
+  "sections": [
+    {
+      "type": "text",
+      "number": "I",
+      "title": "Le courtier conseil",
+      "paragraphs": [
+        "Ce contrat est commercialisé par la société **{{broker.name}}**, courtier d'assurance de catégorie B, immatriculée sous le numéro {{broker.rcs}}. Le siège social de la société est situé {{broker.address}}, {{broker.postal_code}} {{broker.city}}, {{broker.country}}."
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "conseiller",
+      "title": "Votre conseiller",
+      "level": 2,
+      "columns": 2,
+      "fields": [
+        { "key": "agent_name", "label": "Nom du conseiller", "type": "text", "prefill": "agent.name" },
+        { "key": "agent_phone", "label": "Ligne directe", "type": "text", "prefill": "agent.phone" },
+        { "key": "agent_email", "label": "Adresse e-mail", "type": "text", "prefill": "agent.email" },
+        { "key": "interview_date", "label": "Date de l'entretien", "type": "date", "prefill": "today" }
+      ]
+    },
+    { "type": "broker", "number": "II", "title": "Informations légales" },
+    {
+      "type": "text",
+      "number": "III",
+      "title": "Remarques importantes",
+      "paragraphs": [
+        "Nous attirons votre attention sur le fait que la fourniture d'une information complète et sincère est une condition indispensable à la délivrance d'un conseil adapté. À défaut de réponse à une question, ou en cas de réponse incomplète ou erronée, la fiabilité et la pertinence de cette étude — et donc des solutions qui vous seront proposées — pourraient être compromises.",
+        "Vous reconnaissez avoir pris connaissance du contenu du présent document préalablement à l'adhésion au contrat d'assurance proposé, en avoir conservé un exemplaire, et avoir reçu une information détaillée sur l'étendue, la définition des risques et des garanties proposées.",
+        "Aussi précis que soient les informations et les conseils qui vous ont été donnés, il est très important que vous lisiez attentivement les notices de votre précontrat d'assurance qui vous seront remises au moment de votre adhésion. Ces notices constituent le document juridique contractuel exprimant les droits et obligations de l'assuré et de l'assureur.",
+        "Nous insistons sur l'importance de la précision et de la sincérité des réponses apportées dans la demande d'adhésion. **Une fausse déclaration intentionnelle entraîne la nullité du contrat et la déchéance de vos garanties.**",
+        "Conformément à la loi Informatique et Libertés du 6 janvier 1978 modifiée en 2004, vous bénéficiez d'un droit d'accès, de rectification et d'opposition aux informations qui vous concernent, que vous pouvez exercer en vous adressant au siège social de la société {{broker.name}}. Les données à caractère personnel recueillies sont nécessaires à la conclusion du présent contrat et pourront être utilisées par l'assureur et ses partenaires."
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "souscripteur",
+      "title": "Le souscripteur ou le conducteur principal",
+      "page_break_before": true,
+      "columns": 2,
+      "fields": [
+        { "key": "civilite", "label": "Civilité", "type": "select", "options": ["M.", "Mme", "Mlle"] },
+        { "key": "first_name", "label": "Prénom", "type": "text", "required": true, "prefill": "lead.first_name" },
+        { "key": "last_name", "label": "Nom", "type": "text", "required": true, "prefill": "lead.last_name" },
+        { "key": "birth_date", "label": "Date de naissance", "type": "date", "prefill": "lead.birth_date" },
+        { "key": "license_date", "label": "Date d'obtention du permis", "type": "date" },
+        { "key": "phone", "label": "Numéro de téléphone", "type": "text", "prefill": "lead.phone" },
+        { "key": "email", "label": "Adresse e-mail", "type": "text", "prefill": "lead.email" },
+        { "key": "address", "label": "Adresse postale", "type": "text", "width": "full", "prefill": "lead.full_address" },
+        { "key": "company_name", "label": "Raison sociale (le cas échéant)", "type": "text", "prefill": "lead.company_name" },
+        { "key": "siret", "label": "SIREN / SIRET", "type": "text" }
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "antecedents_assurance",
+      "title": "Les antécédents d'assurance",
+      "level": 2,
+      "columns": 2,
+      "fields": [
+        { "key": "bonus_malus", "label": "Coefficient bonus-malus", "type": "text" },
+        { "key": "months_insured", "label": "Mois d'assurance (36 derniers mois)", "type": "text" },
+        { "key": "termination_reason", "label": "Motif de résiliation", "type": "text" },
+        { "key": "claims_material_resp", "label": "Sinistre matériel responsable", "type": "text" },
+        { "key": "claims_material_nonresp", "label": "Sinistre matériel non responsable", "type": "text" },
+        { "key": "claims_bodily_resp", "label": "Sinistre corporel responsable", "type": "text" },
+        { "key": "claims_bodily_nonresp", "label": "Sinistre corporel non responsable", "type": "text" },
+        { "key": "glass_breakage", "label": "Bris de glace", "type": "text" },
+        { "key": "theft_count", "label": "Vol", "type": "text" }
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "antecedents_conducteur",
+      "title": "Les antécédents du conducteur",
+      "level": 2,
+      "columns": 2,
+      "fields": [
+        { "key": "suspension_alcohol", "label": "Suspension de permis — alcoolémie", "type": "text" },
+        { "key": "suspension_drugs", "label": "Suspension de permis — stupéfiants", "type": "text" },
+        { "key": "suspension_points", "label": "Suspension de permis — perte de points", "type": "text" },
+        { "key": "cancellation_points", "label": "Annulation de permis — perte de points", "type": "text" },
+        { "key": "suspension_months", "label": "Nombre de mois de suspension", "type": "text" }
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "vehicule",
+      "title": "Le véhicule",
+      "level": 2,
+      "columns": 2,
+      "fields": [
+        { "key": "vehicle_brand", "label": "Marque", "type": "text" },
+        { "key": "vehicle_model", "label": "Modèle", "type": "text" },
+        { "key": "vehicle_first_registration", "label": "1ère mise en circulation", "type": "date" },
+        { "key": "vehicle_purchase_date", "label": "Date d'achat", "type": "date" },
+        { "key": "vehicle_plate", "label": "Immatriculation", "type": "text", "uppercase": true },
+        { "key": "vehicle_usage", "label": "Usage", "type": "text" }
+      ]
+    },
+    {
+      "type": "garanties",
+      "key": "garanties",
+      "title": "Vos exigences et besoins",
+      "page_break_before": true,
+      "items": [
+        { "key": "g_rc", "label": "Responsabilité civile", "default_included": true },
+        { "key": "g_defense", "label": "Défense pénale et recours" },
+        { "key": "g_rc_pro", "label": "Responsabilité civile professionnelle" },
+        { "key": "g_conducteur", "label": "Garantie du conducteur" },
+        { "key": "g_assistance", "label": "Assistance" },
+        { "key": "g_bris_glace", "label": "Bris de glace" },
+        { "key": "g_vol_incendie", "label": "Vol — incendie" },
+        { "key": "g_cat_nat", "label": "Catastrophes naturelles" },
+        { "key": "g_cat_tech", "label": "Catastrophes technologiques" },
+        { "key": "g_attentats", "label": "Attentats" },
+        { "key": "g_dommages", "label": "Dommages tous accidents" },
+        { "key": "g_vehicule_remplacement", "label": "Véhicule de remplacement" }
+      ]
+    },
+    {
+      "type": "text",
+      "style": "info",
+      "paragraphs": [
+        "**Droit de renonciation.** L'article L.112-2-1 du Code des assurances prévoit, en cas de vente à distance, une faculté de renoncer au contrat dans un délai de 14 jours à compter de la date de souscription, sans motif ni pénalité. Toutefois, par dérogation, ce droit de renonciation ne s'applique pas aux contrats d'assurance mentionnés à l'article L.211-1 du même code, couvrant la responsabilité civile des véhicules terrestres à moteur. En conséquence, si vous souhaitez souscrire dès maintenant, vous êtes informé qu'à compter de la prise d'effet de vos garanties, vous ne disposez pas de droit de renonciation."
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "tarification",
+      "title": "Tarification",
+      "columns": 2,
+      "fields": [
+        { "key": "formule", "label": "Formule conseillée", "type": "text" },
+        { "key": "compagnie", "label": "Compagnie partenaire", "type": "text" },
+        { "key": "prime_annuelle", "label": "Prime annuelle (taxes incluses)", "type": "money", "min": 0 },
+        { "key": "prime_mensuelle", "label": "Prime mensuelle (taxes incluses)", "type": "money", "min": 0 },
+        { "key": "frais_courtage", "label": "Frais de courtage (gestion et service inclus)", "type": "money", "min": 0 }
+      ]
+    },
+    {
+      "type": "text",
+      "paragraphs": [
+        "Le client reconnaît avoir pris connaissance du contenu du présent document préalablement à la signature du contrat d'assurance proposé ci-dessus."
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Rémunération du courtier",
+      "page_break_before": true,
+      "paragraphs": [
+        "Nous sommes rémunérés sur la base d'une commission incluse dans la prime d'assurance, et de frais de courtage ainsi que d'honoraires dont le montant vous est communiqué sur la facture qui vous est remise par ailleurs (article L.521-2-II-2°d du Code des assurances). Les honoraires de courtage sont acquis au cabinet dès la proposition d'une solution d'assurance. En cas de rétractation dérogatoire sur la proposition d'assurance, le remboursement se fera uniquement au prorata des acomptes versés aux compagnies."
+      ]
+    },
+    {
+      "type": "list",
+      "title": "Documents à fournir",
+      "intro": "Nous vous livrerons votre attestation d'assurance définitive avant l'expiration du certificat provisoire, à condition que vous nous envoyiez rapidement l'ensemble des documents suivants :",
+      "items": [
+        "Les conditions particulières signées et paraphées",
+        "Le relevé d'information",
+        "La carte grise définitive ou le certificat d'immatriculation",
+        "Le mandat SEPA signé",
+        "Le RIB",
+        "La copie recto-verso du permis de conduire",
+        "L'acompte d'1 ou 2 mois d'assurance selon la compagnie"
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Avertissements importants",
+      "style": "info",
+      "page_break_before": true,
+      "paragraphs": [
+        "Les honoraires de courtage et frais de dossier sont prélevés automatiquement en paiement différé par carte bancaire ; en cas de rejet de paiement, le montant réclamé sera prélevé automatiquement dès approvisionnement de votre compte.",
+        "Après étude de vos documents par la compagnie d'assurance, il peut vous être demandé de fournir des documents supplémentaires avant la validation de votre dossier et l'envoi de l'attestation définitive.",
+        "En cas de non-réception des documents nécessaires à la validation de votre dossier avant l'expiration du certificat provisoire, votre contrat d'assurance auto sera résilié.",
+        "En cas de réception de documents dont les informations ne sont pas conformes à ce que vous avez déclaré avant la prise de garantie provisoire, votre contrat sera résilié par la compagnie, ou un avenant vous sera proposé pour régulariser votre dossier.",
+        "En signant ce document, vous confirmez votre accord et attestez l'exactitude de l'ensemble de vos déclarations relatives à votre véhicule, vos antécédents d'assurance et vos infractions ou retraits de permis.",
+        "Ce document n'est qu'un devis, accompagné d'autres documents précontractuels, et ne peut en aucun cas garantir que vous êtes assuré, même signé. Votre couverture ne devient effective qu'après acceptation de votre dossier par la compagnie et réception de votre attestation d'assurance.",
+        "En cas de fausse déclaration, le contrat sera résilié pour fausse déclaration ou nullité de contrat. Les modalités d'application du contrat et des garanties sont détaillées dans les dispositions particulières et générales."
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Autorisation de prélèvement",
+      "page_break_before": true,
+      "paragraphs": [
+        "Je soussigné(e), M./Mme {{first_name}} {{last_name}}, confirme accepter d'être prélevé(e), à réception de la facture, du règlement de mon compte au titre des frais de dossier par carte bancaire. J'autorise le cabinet {{broker.name}} à débiter la somme de {{debit_amount}} à régler le {{installment_1_date}}."
+      ]
+    },
+    {
+      "type": "text",
+      "visible_if": "installment_2_amount",
+      "paragraphs": [
+        "Une seconde échéance de {{installment_2_amount}} sera réglée le {{installment_2_date}}."
+      ]
+    },
+    {
+      "type": "fields",
+      "key": "paiement",
+      "title": "Paiement",
+      "level": 2,
+      "columns": 2,
+      "fields": [
+        { "key": "debit_amount", "label": "Montant autorisé au débit", "type": "money", "min": 0 },
+        { "key": "installment_1_amount", "label": "Échéance 1 — montant", "type": "money", "min": 0 },
+        { "key": "installment_1_date", "label": "Échéance 1 — date", "type": "date" },
+        { "key": "installment_2_amount", "label": "Échéance 2 — montant", "type": "money", "min": 0 },
+        { "key": "installment_2_date", "label": "Échéance 2 — date", "type": "date" },
+        { "key": "payment_mode", "label": "Mode de paiement", "type": "text", "default": "Lien de paiement envoyé par mail" }
+      ]
+    }
+  ]
+}
