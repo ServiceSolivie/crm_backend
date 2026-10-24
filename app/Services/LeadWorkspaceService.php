@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Enums\AppointmentStatusEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PermissionEnum;
+use App\Enums\RoleEnum;
 use App\Filters\LeadFilter;
 use App\Models\Appointment;
+use App\Models\DocumentType;
 use App\Models\Lead;
 use App\Models\User;
 use Carbon\Carbon;
@@ -25,6 +27,14 @@ class LeadWorkspaceService
         protected LeadService $leads,
         protected AppointmentService $appointments,
     ) {}
+
+    /**
+     * Duplicates and earlier assignments are shown to the super admin only.
+     */
+    protected function isSuperAdmin(User $user): bool
+    {
+        return $user->hasRole(RoleEnum::SUPER_ADMIN->value);
+    }
 
     /**
      * Leads the user may see.
@@ -89,7 +99,8 @@ class LeadWorkspaceService
             'all' => $base()->count(),
             'mine' => $base()->where('assigned_to', $user->id)->count(),
             'unassigned' => $base()->whereNull('assigned_to')->count(),
-            'doublons' => $base()->where('is_doublon', true)->count(),
+            // Duplicates are for the super admin only
+            ...($this->isSuperAdmin($user) ? ['doublons' => $base()->where('is_doublon', true)->count()] : []),
             'due_today' => $base()->whereHas('appointments', fn (Builder $q) => $q
                 ->whereIn('status', AppointmentStatusEnum::openValues())
                 ->where('scheduled_at', '<=', now()->endOfDay()))->count(),
@@ -123,23 +134,15 @@ class LeadWorkspaceService
      */
     public function duplicates(User $user, ?string $phone, ?string $email, ?int $excludeId = null): array
     {
-        $digits = substr(preg_replace('/\D+/', '', (string) $phone), -9);
-        $email = trim((string) $email);
+        // The duplicate warning is for the super admin only
+        $query = $this->isSuperAdmin($user) ? $this->leads->sameContact($phone, $email) : null;
 
-        if (strlen($digits) < 8 && $email === '') {
+        if (! $query) {
             return [];
         }
 
-        $matches = Lead::query()
+        $matches = $query
             ->when($excludeId, fn (Builder $q) => $q->where('id', '!=', $excludeId))
-            ->where(function (Builder $q) use ($digits, $email) {
-                if (strlen($digits) >= 8) {
-                    $q->orWhereRaw('RIGHT('.$this->phoneDigitsSql().', 9) = ?', [$digits]);
-                }
-                if ($email !== '') {
-                    $q->orWhere('email', $email);
-                }
-            })
             ->with('assignedAgent:id,name')
             ->latest()
             ->limit(5)
@@ -191,7 +194,12 @@ class LeadWorkspaceService
                 ]]);
         }
 
-        foreach ($lead->assignmentHistories()->with(['fromUser', 'toUser', 'assignedBy'])->get() as $h) {
+        // Who had the lead before is for the super admin only
+        $assignments = $this->isSuperAdmin($user)
+            ? $lead->assignmentHistories()->with(['fromUser', 'toUser', 'assignedBy'])->get()
+            : collect();
+
+        foreach ($assignments as $h) {
             $items->push(['type' => 'assignment', 'id' => $h->id, 'at' => $h->created_at, 'user' => $person($h->assignedBy),
                 'data' => [
                     'from' => $person($h->fromUser) ?? ($h->from_agent_name ? ['id' => null, 'name' => $h->from_agent_name] : null),
@@ -227,7 +235,7 @@ class LeadWorkspaceService
         }
 
         if ($user->can(PermissionEnum::DOCUMENTS_VIEW->value)) {
-            $typeLabels = \App\Models\DocumentType::query()->pluck('label', 'name');
+            $typeLabels = DocumentType::query()->pluck('label', 'name');
 
             foreach ($lead->documents()->with('uploader')->get() as $d) {
                 $items->push(['type' => 'document', 'id' => $d->id, 'at' => $d->created_at, 'user' => $person($d->uploader),
@@ -348,6 +356,6 @@ class LeadWorkspaceService
      */
     protected function phoneDigitsSql(): string
     {
-        return "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '.', ''), '-', ''), '+', ''), '(', ''), ')', '')";
+        return LeadService::phoneDigitsSql();
     }
 }

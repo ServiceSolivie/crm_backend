@@ -72,6 +72,38 @@ class LeadService extends BaseService
     }
 
     /**
+     * Leads with the same contact: same last 9 phone digits (so 06…, +33 6…
+     * and 0033 6… match) or same e-mail. Null when there is nothing to match on.
+     */
+    public function sameContact(?string $phone, ?string $email): ?Builder
+    {
+        $digits = substr(preg_replace('/\D+/', '', (string) $phone), -9);
+        $email = trim((string) $email);
+
+        if (strlen($digits) < 8 && $email === '') {
+            return null;
+        }
+
+        return Lead::query()->where(function (Builder $q) use ($digits, $email) {
+            if (strlen($digits) >= 8) {
+                $q->orWhereRaw('RIGHT('.self::phoneDigitsSql().', 9) = ?', [$digits]);
+            }
+            if ($email !== '') {
+                $q->orWhere('email', $email);
+            }
+        });
+    }
+
+    /**
+     * SQL expression: the phone column with spaces, dots, dashes, plus signs
+     * and brackets removed.
+     */
+    public static function phoneDigitsSql(): string
+    {
+        return "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '.', ''), '-', ''), '+', ''), '(', ''), ')', '')";
+    }
+
+    /**
      * Paginate leads, scoped to what the given user is allowed to see.
      */
     public function paginateForUser(User $user, LeadFilter $filters, int $perPage = 15): LengthAwarePaginator
@@ -143,6 +175,57 @@ class LeadService extends BaseService
         ]);
 
         return $lead->refresh();
+    }
+
+    /**
+     * A lead typed in the CRM form. Without LEADS_ASSIGN (agents) the creator
+     * can't choose who gets it, its team or its status: it is theirs.
+     * It is flagged as a doublon when the contact is already on a lead with
+     * another owner (or none): the form warned about it, a manager decides.
+     * The same contact twice for the same agent is a second product, not a doublon.
+     */
+    public function createFromForm(array $data, User $creator): Lead
+    {
+        $note = trim((string) ($data['note'] ?? ''));
+        unset($data['note']);
+
+        if (! $creator->can(PermissionEnum::LEADS_ASSIGN->value)) {
+            unset($data['status']);
+            $data['assigned_to'] = $creator->id;
+            $data['team_id'] = $creator->team_id;
+        }
+
+        return DB::transaction(function () use ($data, $creator, $note) {
+            $lead = $this->createLead($data, $creator);
+
+            // Recorded like any assignment, so doublon detection sees it
+            if ($lead->assigned_to) {
+                $lead->assignmentHistories()->create([
+                    'from_user_id' => null,
+                    'to_user_id' => $lead->assigned_to,
+                    'assigned_by' => $creator->id,
+                ]);
+            }
+
+            if ($note !== '') {
+                $this->addNote($lead, $creator, $note);
+            }
+
+            $owner = $lead->assigned_to;
+            $other = $this->sameContact($lead->phone, $lead->email)
+                ?->where('id', '!=', $lead->id)
+                ->when($owner, fn (Builder $q) => $q->where(
+                    fn (Builder $q) => $q->whereNull('assigned_to')->orWhere('assigned_to', '!=', $owner)
+                ))
+                ->latest('id')
+                ->first();
+
+            if ($other) {
+                $lead->update(['is_doublon' => true, 'doublon_of_lead_id' => $other->id]);
+            }
+
+            return $lead->refresh();
+        });
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Enums\LeadStatusEnum;
+use App\Enums\RoleEnum;
 use Illuminate\Http\Request;
 
 class LeadResource extends BaseResource
@@ -35,11 +36,12 @@ class LeadResource extends BaseResource
             'status' => $this->status_code,
             'status_label' => $this->status_label,
             'comment' => $this->comment,
-            'is_doublon' => $this->is_doublon,
-            'doublon_of' => $this->whenLoaded('doublonOf', fn () => $this->doublonOf ? [
+            // Duplicates are for the super admin only
+            'is_doublon' => $this->when($this->seesDoublons($request), fn () => $this->is_doublon),
+            'doublon_of' => $this->when($this->seesDoublons($request), fn () => $this->whenLoaded('doublonOf', fn () => $this->doublonOf ? [
                 'id' => $this->doublonOf->id,
                 'reference' => $this->doublonOf->reference,
-            ] : null),
+            ] : null)),
             'lead_submitted_at' => $this->formatDate($this->lead_submitted_at),
             'lead_source' => $this->whenLoaded('leadSource', fn () => [
                 'id' => $this->leadSource->id,
@@ -88,6 +90,11 @@ class LeadResource extends BaseResource
             'created_at' => $this->formatDate($this->created_at),
             'updated_at' => $this->formatDate($this->updated_at),
         ];
+    }
+
+    protected function seesDoublons(Request $request): bool
+    {
+        return (bool) $request->user()?->hasRole(RoleEnum::SUPER_ADMIN->value);
     }
 
     /**
