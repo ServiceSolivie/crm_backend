@@ -26,6 +26,7 @@ class AppointmentResource extends BaseResource
                 'first_name' => $this->lead->first_name,
                 'last_name' => $this->lead->last_name,
                 'phone' => $this->lead->phone,
+                'is_callable' => $this->lead->isCallable(),
                 'insurance_type' => $this->lead->insurance_type?->value,
                 'status' => $this->lead->status_code,
                 'status_label' => $this->lead->status_label,

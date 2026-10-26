@@ -59,6 +59,18 @@ class DashboardController extends Controller
         return $this->success($this->dashboardService->charts($user, $days, $teamId, $agentId));
     }
 
+    public function calls(DashboardFilterRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless($this->dashboardService->canViewCalls($user), 403, 'Vous n\'avez pas la permission de consulter les appels.');
+
+        [$from, $to] = $this->resolveDates($request);
+        [$teamId, $agentId] = $this->resolveFilters($request);
+
+        return $this->success($this->dashboardService->calls($user, $from, $to, $teamId, $agentId));
+    }
+
     public function revenue(DashboardFilterRequest $request): JsonResponse
     {
         $user = $request->user();
