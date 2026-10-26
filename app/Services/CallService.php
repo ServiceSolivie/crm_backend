@@ -48,8 +48,12 @@ class CallService
      */
     public function initiate(Lead $lead, User $agent, bool $viaMobile = false): Call
     {
-        if (! $agent->isRingoverLinked() || $agent->ringover_number === null) {
+        if (! $agent->isRingoverLinked()) {
             throw new ApiException('Votre compte n\'est pas lié à Ringover. Contactez votre administrateur.', 422);
+        }
+
+        if ($agent->ringover_number === null) {
+            throw new ApiException('Aucun numéro Ringover n\'est associé à votre compte. Contactez votre administrateur.', 422);
         }
 
         if (! $lead->isCallable()) {
