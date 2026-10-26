@@ -45,14 +45,17 @@ class CallService
      * Record that an agent is calling a lead from the CRM. The call is then
      * dialled by the embedded Ringover phone or, with $viaMobile, by Ringover
      * ringing the agent's own devices first. Ringover's own events complete it.
+     *
+     * The embedded phone dials from whichever Ringover account the agent signs
+     * in with, so only the mobile callback needs the CRM-side link and number.
      */
     public function initiate(Lead $lead, User $agent, bool $viaMobile = false): Call
     {
-        if (! $agent->isRingoverLinked()) {
+        if ($viaMobile && ! $agent->isRingoverLinked()) {
             throw new ApiException('Votre compte n\'est pas lié à Ringover. Contactez votre administrateur.', 422);
         }
 
-        if ($agent->ringover_number === null) {
+        if ($viaMobile && $agent->ringover_number === null) {
             throw new ApiException('Aucun numéro Ringover n\'est associé à votre compte. Contactez votre administrateur.', 422);
         }
 
