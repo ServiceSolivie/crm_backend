@@ -55,7 +55,7 @@ class RingoverWebhookHandler
         }
 
         try {
-            $data = $this->mapper->fromWebhook($event->event, $event->payload['data'] ?? []);
+            $data = $this->mapper->fromWebhook($event->event, $event->payload['data'] ?? [], $event->payload['timestamp'] ?? null);
 
             if ($data !== null) {
                 $this->recorder->record($data, 'webhook', $event->event);

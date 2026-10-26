@@ -21,10 +21,14 @@ enum CallDirectionEnum: string implements HasLabel
     }
 
     /**
-     * Ringover sends "in"/"out" (webhooks) or "IN"/"OUT" (calls API).
+     * Ringover sends "inbound"/"outbound" (webhooks) or "IN"/"OUT" (calls API).
      */
     public static function fromRingover(?string $value): ?self
     {
-        return $value === null ? null : self::tryFrom(strtolower($value));
+        return match (strtolower((string) $value)) {
+            'in', 'inbound' => self::IN,
+            'out', 'outbound' => self::OUT,
+            default => null,
+        };
     }
 }

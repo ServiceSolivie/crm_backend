@@ -44,6 +44,33 @@ class RingoverCallMapperTest extends TestCase
         $this->assertSame('https://cdn.ringover.com/records/a.mp3', $data['recording_url']);
     }
 
+    /**
+     * Shape of the webhooks Ringover actually delivers: "outbound", a prefixed
+     * user_id next to the numeric user.user_id, and no answer time on "answered".
+     */
+    public function test_it_maps_real_ringover_webhooks(): void
+    {
+        $payload = [
+            'call_id' => '15309248133858068199',
+            'direction' => 'outbound',
+            'from_number' => '33184800001',
+            'to_number' => '33612345678',
+            'user_id' => 'USER244412',
+            'user' => ['user_id' => 244412, 'firstname' => 'Fred'],
+            'start_date_time_atom' => '2026-10-26T11:53:56+00:00',
+        ];
+
+        $answered = $this->mapper->fromWebhook('answered', $payload, 1793015640);
+
+        $this->assertSame(CallDirectionEnum::OUT, $answered['direction']);
+        $this->assertSame('244412', $answered['ringover_user_id']);
+        $this->assertSame(CallStatusEnum::ANSWERED, $answered['status']);
+        $this->assertSame(1793015640, $answered['answered_at']->timestamp);
+
+        $inbound = $this->mapper->fromWebhook('ringing', ['direction' => 'inbound', 'user_id' => 'USER7'] + $payload);
+        $this->assertSame(CallDirectionEnum::IN, $inbound['direction']);
+    }
+
     public function test_after_call_events_carry_only_their_data(): void
     {
         $summary = $this->mapper->fromWebhook('summary_available', ['call_id' => '42', 'summary' => 'Client intéressé.']);

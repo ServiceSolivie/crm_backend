@@ -28,7 +28,11 @@ class RingoverCallMapper
         'record_available', 'voicemail_available', 'transcription_available', 'summary_available',
     ];
 
-    public function fromWebhook(string $event, array $data): ?array
+    /**
+     * $eventTime is the delivery's top-level "timestamp": the "answered" event
+     * carries no answer time of its own.
+     */
+    public function fromWebhook(string $event, array $data, mixed $eventTime = null): ?array
     {
         if (! in_array($event, self::HANDLED_EVENTS, true) || blank($data['call_id'] ?? null)) {
             return null;
@@ -44,7 +48,7 @@ class RingoverCallMapper
                 'direction' => CallDirectionEnum::fromRingover($data['direction'] ?? null),
                 'from_number' => PhoneNumber::fromRingover($data['from_number'] ?? null),
                 'to_number' => PhoneNumber::fromRingover($data['to_number'] ?? null),
-                'ringover_user_id' => $this->string($data['user_id'] ?? $data['user']['user_id'] ?? $data['user']['userId'] ?? null),
+                'ringover_user_id' => $this->webhookUserId($data),
                 'is_internal' => isset($data['is_internal']) ? (bool) $data['is_internal'] : null,
                 'started_at' => $this->time($data['start_date_time_atom'] ?? $data['start_time'] ?? null),
                 'answered_at' => $this->time($data['answered_date_time_atom'] ?? $data['answered_time'] ?? null),
@@ -53,7 +57,10 @@ class RingoverCallMapper
 
         return array_merge($call, match ($event) {
             'ringing' => ['status' => CallStatusEnum::RINGING],
-            'answered' => ['status' => CallStatusEnum::ANSWERED],
+            'answered' => [
+                'status' => CallStatusEnum::ANSWERED,
+                'answered_at' => $call['answered_at'] ?? $this->time($eventTime),
+            ],
             'hangup' => [
                 'ended' => true,
                 'ended_at' => $this->time($data['hangup_date_time_atom'] ?? $data['hangup_time'] ?? null),
@@ -139,6 +146,17 @@ class RingoverCallMapper
         }
 
         return $time->setTimezone(config('app.timezone'));
+    }
+
+    /**
+     * Webhooks carry the Ringover user both as "user.user_id" (numeric, the
+     * id used everywhere else) and as a prefixed "user_id" ("USER123").
+     */
+    protected function webhookUserId(array $data): ?string
+    {
+        $id = $data['user']['user_id'] ?? $data['user']['userId'] ?? $data['user_id'] ?? null;
+
+        return $this->string(is_string($id) ? preg_replace('/^USER/i', '', $id) : $id);
     }
 
     protected function int(mixed $value): ?int

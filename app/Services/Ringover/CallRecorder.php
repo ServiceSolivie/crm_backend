@@ -120,7 +120,7 @@ class CallRecorder
 
         if (! empty($data['ended']) && $incoming === null) {
             $incoming = match (true) {
-                $call->answered_at !== null => CallStatusEnum::COMPLETED,
+                $call->answered_at !== null, $current === CallStatusEnum::ANSWERED => CallStatusEnum::COMPLETED,
                 $current === CallStatusEnum::VOICEMAIL => CallStatusEnum::VOICEMAIL,
                 $call->direction === CallDirectionEnum::OUT => CallStatusEnum::NO_ANSWER,
                 default => CallStatusEnum::MISSED,
