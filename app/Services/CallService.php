@@ -11,17 +11,15 @@ use App\Models\Call;
 use App\Models\Lead;
 use App\Models\User;
 use App\Repositories\Contracts\CallRepositoryInterface;
-use App\Services\Ringover\RingoverClient;
+use App\Support\PhoneNumber;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-use Throwable;
 
 class CallService
 {
     public function __construct(
         protected CallRepositoryInterface $calls,
-        protected RingoverClient $ringover,
     ) {}
 
     public function paginateForUser(User $user, CallFilter $filters, int $perPage = 15): LengthAwarePaginator
@@ -43,27 +41,19 @@ class CallService
 
     /**
      * Record that an agent is calling a lead from the CRM. The call is then
-     * dialled by the embedded Ringover phone or, with $viaMobile, by Ringover
-     * ringing the agent's own devices first. Ringover's own events complete it.
+     * dialled by the embedded Ringover phone, from whichever Ringover account
+     * the agent signs in with. Ringover's own events complete it.
      *
-     * The embedded phone dials from whichever Ringover account the agent signs
-     * in with, so only the mobile callback needs the CRM-side link and number.
+     * Ringover's POST /callback (ring the agent's mobile first, then the lead)
+     * is deliberately not used: Ringover bills it as two calls.
      */
-    public function initiate(Lead $lead, User $agent, bool $viaMobile = false): Call
+    public function initiate(Lead $lead, User $agent): Call
     {
-        if ($viaMobile && ! $agent->isRingoverLinked()) {
-            throw new ApiException('Votre compte n\'est pas lié à Ringover. Contactez votre administrateur.', 422);
-        }
-
-        if ($viaMobile && $agent->ringover_number === null) {
-            throw new ApiException('Aucun numéro Ringover n\'est associé à votre compte. Contactez votre administrateur.', 422);
-        }
-
         if (! $lead->isCallable()) {
-            throw new ApiException('Ce lead ne peut pas être appelé (numéro invalide ou marqué comme erroné).', 422);
+            throw new ApiException('Ce lead ne peut pas être appelé (aucun numéro, ou marqué comme erroné).', 422);
         }
 
-        $call = Call::create([
+        return Call::create([
             'lead_id' => $lead->id,
             'user_id' => $agent->id,
             'team_id' => $agent->team_id ?? $lead->team_id,
@@ -71,23 +61,11 @@ class CallService
             'status' => CallStatusEnum::INITIATED,
             'source' => 'crm',
             'from_number' => $agent->ringover_number,
-            'to_number' => $lead->phone_e164,
-            'contact_number' => $lead->phone_e164,
+            // Dialled exactly as stored; the normalised copy is what Ringover reports back.
+            'to_number' => PhoneNumber::forDialing($lead->phone),
+            'contact_number' => $lead->phone_e164 ?? PhoneNumber::forDialing($lead->phone),
             'started_at' => now(),
         ]);
-
-        if ($viaMobile) {
-            try {
-                $this->ringover->requestCallback($agent->ringover_number, $lead->phone_e164);
-            } catch (Throwable $e) {
-                // Nothing was dialled: do not leave an attempt in the history.
-                $call->delete();
-
-                throw $e;
-            }
-        }
-
-        return $call;
     }
 
     /**

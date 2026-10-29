@@ -82,21 +82,6 @@ class RingoverClient
     }
 
     /**
-     * Ask Ringover to ring the agent's own devices (app, mobile…) first and,
-     * once they pick up, call the lead (POST /v2/callback).
-     */
-    public function requestCallback(string $fromE164, string $toE164): array
-    {
-        // A single attempt: retrying after a server error could ring the agent twice.
-        return $this->send(fn (PendingRequest $http) => $http->retry(1)->post('/callback', [
-            'from_number' => (int) PhoneNumber::toRingover($fromE164),
-            'to_number' => (int) PhoneNumber::toRingover($toE164),
-            'timeout' => (int) config('services.ringover.callback.timeout', 20),
-            'device' => config('services.ringover.callback.device', 'ALL'),
-        ]));
-    }
-
-    /**
      * Download a recording, voicemail or transcription from Ringover.
      * Only Ringover hosts are accepted: the URL comes from a webhook and
      * must never make the server fetch anything else.

@@ -235,11 +235,12 @@ class Lead extends Model
     }
 
     /**
-     * A lead can be called when its number is valid and not flagged as wrong.
+     * A lead can be called when it has a number (dialled as stored, whatever
+     * its shape) and is not flagged as wrong.
      */
     public function isCallable(): bool
     {
-        return $this->phone_e164 !== null
+        return PhoneNumber::forDialing($this->phone) !== null
             && ! in_array($this->status, [LeadStatusEnum::MAUVAIS_NUMERO, LeadStatusEnum::LEAD_INVALIDE], true);
     }
 

@@ -88,24 +88,6 @@ class RingoverClientTest extends TestCase
         $this->assertSame('audio/mpeg', $response->header('Content-Type'));
     }
 
-    public function test_callback_sends_numbers_as_ringover_digits_and_is_not_retried(): void
-    {
-        Http::fake(['*' => Http::response(['message' => 'error'], 500)]);
-
-        try {
-            app(RingoverClient::class)->requestCallback('+33184800001', '+33612345678');
-            $this->fail('Expected a RingoverException');
-        } catch (RingoverException) {
-            // expected
-        }
-
-        Http::assertSentCount(1);
-        Http::assertSent(fn (Request $request) => $request->url() === 'https://public-api.ringover.com/v2/callback'
-            && $request['from_number'] === 33184800001
-            && $request['to_number'] === 33612345678
-            && $request['device'] === 'ALL');
-    }
-
     public function test_it_refuses_to_call_ringover_without_a_key(): void
     {
         config(['services.ringover.api_key' => null]);

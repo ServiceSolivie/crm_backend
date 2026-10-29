@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\V1;
 use App\Filters\CallFilter;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Call\AssignCallLeadRequest;
-use App\Http\Requests\Call\InitiateCallRequest;
 use App\Http\Requests\Call\LinkRingoverCallRequest;
 use App\Http\Requests\Call\UpdateCallRequest;
 use App\Http\Resources\CallResource;
@@ -53,25 +52,23 @@ class CallController extends Controller
     }
 
     /**
-     * Start a call to a lead from the CRM. Returns the call and, for the
-     * embedded phone, the numbers it must dial ("mobile": Ringover rings the
-     * agent's devices itself, nothing to dial).
+     * Start a call to a lead from the CRM. Returns the call and the numbers
+     * the embedded phone must dial.
      */
-    public function initiate(InitiateCallRequest $request, Lead $lead): JsonResponse
+    public function initiate(Request $request, Lead $lead): JsonResponse
     {
         $this->authorize('view', $lead);
         $this->authorize('create', Call::class);
 
-        $viaMobile = $request->validated('via') === 'mobile';
-        $call = $this->callService->initiate($lead, $request->user(), $viaMobile);
+        $call = $this->callService->initiate($lead, $request->user());
 
         return $this->created([
             'call' => new CallResource($call->load(['lead', 'agent'])),
-            'dial' => $viaMobile ? null : [
+            'dial' => [
                 'to' => $call->to_number,
                 'from' => $call->from_number,
             ],
-        ], $viaMobile ? 'Ringover fait sonner votre téléphone' : 'Appel initié');
+        ], 'Appel initié');
     }
 
     public function assignLead(AssignCallLeadRequest $request, Call $call): JsonResponse

@@ -39,6 +39,32 @@ class PhoneNumber
     }
 
     /**
+     * The number to call, as stored on the lead: only spaces and punctuation
+     * are removed. "00…" and numbers stored with their country code but no
+     * "+" (596696777862, 33612345678) get the "+"; a national number
+     * (0692737813) is dialled as is. A number is never refused for its shape.
+     */
+    public static function forDialing(?string $number): ?string
+    {
+        $number = trim((string) $number);
+        $digits = preg_replace('/\D/', '', $number);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($number, '+')) {
+            return '+'.$digits;
+        }
+
+        if (str_starts_with($digits, '00')) {
+            return '+'.substr($digits, 2);
+        }
+
+        return str_starts_with($digits, '0') ? $digits : '+'.$digits;
+    }
+
+    /**
      * Ringover sends numbers as international digits without "+" (e.g. 33612345678).
      */
     public static function fromRingover(int|string|null $number): ?string
@@ -67,6 +93,12 @@ class PhoneNumber
         // "0033 6…" → "+33 6…"
         if (str_starts_with($number, '00')) {
             $number = '+'.substr($number, 2);
+        }
+
+        // Digits without "+" or a leading 0 carry their country code
+        // (596696777862, 262692242751, 33612345678): read them as international.
+        if (! str_starts_with($number, '+') && ! str_starts_with($number, '0') && preg_match('/^[\d\s.\-()\/]+$/', $number)) {
+            $number = '+'.$number;
         }
 
         return $number;
