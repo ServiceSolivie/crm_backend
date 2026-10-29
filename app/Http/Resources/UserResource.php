@@ -23,6 +23,12 @@ class UserResource extends BaseResource
                 'id' => $this->team->id,
                 'name' => $this->team->name,
             ] : null),
+            'ringover' => [
+                'is_linked' => $this->isRingoverLinked(),
+                'user_id' => $this->ringover_user_id,
+                'number' => $this->ringover_number,
+                'linked_at' => $this->formatDate($this->ringover_linked_at),
+            ],
             'last_login_at' => $this->formatDate($this->last_login_at),
             'created_at' => $this->formatDate($this->created_at),
             'updated_at' => $this->formatDate($this->updated_at),

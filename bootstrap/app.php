@@ -3,6 +3,7 @@
 use App\Exceptions\ApiException;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\VerifyRingoverWebhook;
 use App\Http\Middleware\VerifyWebhookSecret;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -40,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'verify_webhook_secret' => VerifyWebhookSecret::class,
+            'ringover.webhook' => VerifyRingoverWebhook::class,
         ]);
         $middleware->api(append: [SetLocale::class]);
     })
@@ -95,5 +97,6 @@ return Application::configure(basePath: dirname(__DIR__))
         // (GoogleSheetLeadImporter::importFromWebhookPayload()); nothing polls the sheets.
         $schedule->command('appointments:send-today-reminders')->dailyAt('07:00');
         $schedule->command('appointments:send-due-reminders')->everyMinute()->withoutOverlapping();
+        $schedule->command('ringover:sync-calls')->hourly()->withoutOverlapping();
     })
     ->create();

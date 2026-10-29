@@ -39,6 +39,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     require __DIR__.'/api/v1/gestion.php';
     require __DIR__.'/api/v1/me.php';
     require __DIR__.'/api/v1/devices.php';
+    require __DIR__.'/api/v1/ringover.php';
+    require __DIR__.'/api/v1/calls.php';
 
     // Further module route files are required here as they are built.
 });
