@@ -66,6 +66,11 @@ class RoleSeeder extends Seeder
             PermissionEnum::CONTRACTS_VIEW->value,
             PermissionEnum::CONTRACTS_GENERATE->value,
             PermissionEnum::CONTRACTS_DELETE->value,
+            PermissionEnum::CALLS_MAKE->value,
+            PermissionEnum::CALLS_VIEW_OWN->value,
+            PermissionEnum::CALLS_VIEW_TEAM->value,
+            PermissionEnum::CALLS_LISTEN_OWN->value,
+            PermissionEnum::CALLS_LISTEN_TEAM->value,
 
             PermissionEnum::NOTIFICATIONS_VIEW->value,
         ]);
@@ -110,6 +115,11 @@ class RoleSeeder extends Seeder
 
             PermissionEnum::CONTRACTS_VIEW->value,
             PermissionEnum::CONTRACTS_GENERATE->value,
+            PermissionEnum::CALLS_MAKE->value,
+            PermissionEnum::CALLS_VIEW_OWN->value,
+            PermissionEnum::CALLS_VIEW_TEAM->value,
+            PermissionEnum::CALLS_LISTEN_OWN->value,
+            PermissionEnum::CALLS_LISTEN_TEAM->value,
 
             PermissionEnum::NOTIFICATIONS_VIEW->value,
         ]);
@@ -145,6 +155,9 @@ class RoleSeeder extends Seeder
 
             PermissionEnum::CONTRACTS_VIEW->value,
             PermissionEnum::CONTRACTS_GENERATE->value,
+            PermissionEnum::CALLS_MAKE->value,
+            PermissionEnum::CALLS_VIEW_OWN->value,
+            PermissionEnum::CALLS_LISTEN_OWN->value,
 
             PermissionEnum::NOTIFICATIONS_VIEW->value,
         ]);

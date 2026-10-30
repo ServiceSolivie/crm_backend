@@ -15,6 +15,8 @@ class AgentReportResource extends BaseResource
         $validatedLeads = (int) $this->validated_leads;
         $totalAppointments = (int) $this->total_appointments;
         $completedAppointments = (int) $this->completed_appointments;
+        $totalPhoneCalls = (int) $this->total_phone_calls;
+        $answeredPhoneCalls = (int) $this->answered_phone_calls;
 
         return [
             'id' => $this->id,
@@ -36,6 +38,15 @@ class AgentReportResource extends BaseResource
             ],
             'calls' => [
                 'total' => (int) $this->total_calls,
+            ],
+            // Calls made or received through Ringover.
+            'phone_calls' => [
+                'total' => $totalPhoneCalls,
+                'answered' => $answeredPhoneCalls,
+                'answer_rate' => $totalPhoneCalls > 0 ? round(($answeredPhoneCalls / $totalPhoneCalls) * 100, 2) : 0.0,
+                'talk_seconds' => (int) $this->talk_seconds,
+                // How many calls it takes to validate one lead (null: no validated lead yet).
+                'per_validated_lead' => $validatedLeads > 0 ? round($totalPhoneCalls / $validatedLeads, 1) : null,
             ],
             'revenue' => [
                 'received' => round((float) $this->revenue_received, 2),

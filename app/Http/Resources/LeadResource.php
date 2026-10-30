@@ -19,6 +19,8 @@ class LeadResource extends BaseResource
             'first_name' => $this->first_name,
             'last_name' => $this->last_name,
             'phone' => $this->phone,
+            'phone_e164' => $this->phone_e164,
+            'is_callable' => $this->isCallable(),
             'email' => $this->email,
             'city' => $this->city,
             'address' => $this->address,

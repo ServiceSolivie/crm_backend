@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Repositories\Contracts\ActivityOperationRepositoryInterface;
 use App\Repositories\Contracts\AppointmentReminderRepositoryInterface;
 use App\Repositories\Contracts\AppointmentRepositoryInterface;
+use App\Repositories\Contracts\CallRepositoryInterface;
 use App\Repositories\Contracts\CampaignRepositoryInterface;
 use App\Repositories\Contracts\ContractRepositoryInterface;
 use App\Repositories\Contracts\CredentialRepositoryInterface;
@@ -27,6 +28,7 @@ use App\Repositories\Contracts\VaultAuditLogRepositoryInterface;
 use App\Repositories\Eloquent\ActivityOperationRepository;
 use App\Repositories\Eloquent\AppointmentReminderRepository;
 use App\Repositories\Eloquent\AppointmentRepository;
+use App\Repositories\Eloquent\CallRepository;
 use App\Repositories\Eloquent\CampaignRepository;
 use App\Repositories\Eloquent\ContractRepository;
 use App\Repositories\Eloquent\CredentialRepository;
@@ -78,6 +80,7 @@ class RepositoryServiceProvider extends ServiceProvider
         PaymentSessionRepositoryInterface::class => PaymentSessionRepository::class,
         PaymentRefundRepositoryInterface::class => PaymentRefundRepository::class,
         ActivityOperationRepositoryInterface::class => ActivityOperationRepository::class,
+        CallRepositoryInterface::class => CallRepository::class,
     ];
 
     public function register(): void

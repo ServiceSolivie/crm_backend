@@ -11,6 +11,7 @@ use App\Models\LeadStatusHistory;
 use App\Models\User;
 use App\Notifications\LeadNeedsCorrectionNotification;
 use App\Notifications\LeadReceivedNotification;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
 
@@ -186,11 +187,12 @@ class GestionService
                 'first_name' => $lead->first_name,
                 'last_name' => $lead->last_name,
                 'phone' => $lead->phone,
+                'is_callable' => $lead->isCallable(),
                 'insurance_type' => $lead->insurance_type?->value,
                 'status' => $lead->status_code,
                 'dvc_status' => $lead->dvc_status?->value,
                 'agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,
-                'status_since' => $lead->status_since ? \Illuminate\Support\Carbon::parse($lead->status_since)->toIso8601String() : $lead->updated_at?->toIso8601String(),
+                'status_since' => $lead->status_since ? Carbon::parse($lead->status_since)->toIso8601String() : $lead->updated_at?->toIso8601String(),
             ])
             ->sortBy('status_since')
             ->values()

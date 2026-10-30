@@ -3,6 +3,7 @@
 namespace App\Repositories\Eloquent;
 
 use App\Enums\AppointmentStatusEnum;
+use App\Enums\CallStatusEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PaymentStatusEnum;
@@ -81,6 +82,17 @@ class ReportRepository implements ReportRepositoryInterface
             ->withCount(['calls as total_calls' => function (Builder $query) use ($from, $to) {
                 $this->applyDateRange($query, 'created_at', $from, $to);
             }])
+            ->withCount(['phoneCalls as total_phone_calls' => function (Builder $query) use ($from, $to) {
+                $this->realCalls($query, $from, $to);
+            }])
+            ->withCount(['phoneCalls as answered_phone_calls' => function (Builder $query) use ($from, $to) {
+                $this->realCalls($query, $from, $to);
+                $query->where('status', CallStatusEnum::COMPLETED->value);
+            }])
+            ->withSum(['phoneCalls as talk_seconds' => function (Builder $query) use ($from, $to) {
+                $this->realCalls($query, $from, $to);
+                $query->where('status', CallStatusEnum::COMPLETED->value);
+            }], 'talk_seconds')
             ->withSum(['assignedLeadPayments as revenue_received' => function (Builder $query) use ($from, $to) {
                 $query->where('payments.status', PaymentRecordStatusEnum::REUSSI->value);
                 $this->applyDateRange($query, 'payments.payment_date', $from, $to);
@@ -266,6 +278,15 @@ class ReportRepository implements ReportRepositoryInterface
         $this->applyDateRange($query, 'validated_at', $from, $to);
 
         return $query;
+    }
+
+    /**
+     * Calls with a real counterpart: no internal calls, no CRM click that never became a call.
+     */
+    protected function realCalls(Builder $query, ?string $from, ?string $to): void
+    {
+        $query->where('is_internal', false)->where('status', '!=', CallStatusEnum::INITIATED->value);
+        $this->applyDateRange($query, 'started_at', $from, $to);
     }
 
     protected function applyDateRange(Builder $query, string $column, ?string $from, ?string $to): void
