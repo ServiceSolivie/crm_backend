@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
  * The address given to the marketing team: /api/v1/intake/leads.
  * Test phase: whatever arrives is recorded as is, nothing else happens.
  * Any format and any method are accepted; only the key decides.
+ *
+ * /api/v1/intake/test is the same for GET requests, without a key.
  */
 class IntakeController extends Controller
 {
@@ -23,6 +25,13 @@ class IntakeController extends Controller
         if (! $recorded->key_valid) {
             return response()->json(['received' => false, 'message' => 'Invalid or missing API key.'], 401);
         }
+
+        return response()->json(['received' => true, 'id' => $recorded->id]);
+    }
+
+    public function test(Request $request): JsonResponse
+    {
+        $recorded = $this->intake->record($request, keyRequired: false);
 
         return response()->json(['received' => true, 'id' => $recorded->id]);
     }
