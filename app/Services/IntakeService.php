@@ -52,18 +52,19 @@ class IntakeService
      * Record a request. The key may come in X-Api-Key, as a Bearer token or
      * as ?key= (whatever the sender's tool allows). With a wrong or missing
      * key only the outline is kept (time, method, format, size, IP), not
-     * the content.
+     * the content. The GET test address has no key ($keyRequired false).
      */
-    public function record(Request $request): IntakeRequest
+    public function record(Request $request, bool $keyRequired = true): IntakeRequest
     {
         [$provided, $via] = match (true) {
+            ! $keyRequired => ['', null],
             $request->hasHeader('X-Api-Key') => [(string) $request->header('X-Api-Key'), 'header'],
             (bool) $request->bearerToken() => [(string) $request->bearerToken(), 'bearer'],
             $request->query->has('key') => [(string) $request->query('key'), 'query'],
             default => ['', null],
         };
         $key = $this->key();
-        $valid = $key !== null && $provided !== '' && hash_equals($key, $provided);
+        $valid = ! $keyRequired || ($key !== null && $provided !== '' && hash_equals($key, $provided));
 
         $body = $this->body($request);
         // The key itself is never stored
