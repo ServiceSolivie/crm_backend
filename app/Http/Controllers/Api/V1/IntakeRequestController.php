@@ -23,6 +23,7 @@ class IntakeRequestController extends Controller
 
         return $this->success([
             'url' => url('/api/v1/intake/leads'),
+            'test_url' => url('/api/v1/intake/test'),
             'key' => $this->intake->key(),
             'retention_days' => IntakeService::RETENTION_DAYS,
         ]);
@@ -48,7 +49,7 @@ class IntakeRequestController extends Controller
         return $this->success([
             'data' => collect($page->items())->map(fn (IntakeRequest $r) => [
                 ...$this->outline($r),
-                'preview' => $r->body !== null ? Str::limit(preg_replace('/\s+/', ' ', $r->body), 140) : null,
+                'preview' => $this->preview($r),
             ])->all(),
             'meta' => [
                 'total' => $page->total(),
@@ -88,6 +89,17 @@ class IntakeRequestController extends Controller
         IntakeRequest::query()->delete();
 
         return $this->noContent('Requêtes supprimées');
+    }
+
+    /**
+     * The start of what was received: the body, or the address's parameters
+     * when there is none (a GET has its data there).
+     */
+    protected function preview(IntakeRequest $r): ?string
+    {
+        $content = $r->body ?: ($r->query ? json_encode($r->query, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null);
+
+        return $content !== null ? Str::limit(preg_replace('/\s+/', ' ', $content), 140) : null;
     }
 
     /**
