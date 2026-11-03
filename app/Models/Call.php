@@ -68,6 +68,15 @@ class Call extends Model
         ];
     }
 
+    /**
+     * Calls that count: Ringover saw them (not a dial still waiting in the
+     * CRM, or cancelled before it) and they were with someone outside.
+     */
+    public function scopeReal($query)
+    {
+        return $query->where('calls.is_internal', false)->where('calls.status', '!=', CallStatusEnum::INITIATED->value);
+    }
+
     public function lead(): BelongsTo
     {
         return $this->belongsTo(Lead::class)->withTrashed();

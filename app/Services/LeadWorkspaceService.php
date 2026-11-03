@@ -26,6 +26,7 @@ class LeadWorkspaceService
     public function __construct(
         protected LeadService $leads,
         protected AppointmentService $appointments,
+        protected CallService $calls,
     ) {}
 
     /**
@@ -179,9 +180,15 @@ class LeadWorkspaceService
                 'data' => ['note' => $note->note]]);
         }
 
-        foreach ($lead->calls()->with('user')->get() as $call) {
-            $items->push(['type' => 'call', 'id' => $call->id, 'at' => $call->created_at, 'user' => $person($call->user),
-                'data' => ['outcome' => $call->outcome, 'note' => $call->note]]);
+        // Ringover calls, only those the user may see
+        foreach ($this->calls->visibleForLead($lead, $user) as $call) {
+            $items->push(['type' => 'call', 'id' => $call->id, 'at' => $call->started_at ?? $call->created_at, 'user' => $person($call->agent),
+                'data' => [
+                    'direction' => $call->direction?->value,
+                    'status' => $call->status?->value,
+                    'talk_seconds' => $call->talk_seconds,
+                    'note' => $call->note,
+                ]]);
         }
 
         foreach ($lead->statusHistories()->with('changedBy')->get() as $h) {

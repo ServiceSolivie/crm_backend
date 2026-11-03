@@ -14,6 +14,7 @@ use App\Repositories\Contracts\CallRepositoryInterface;
 use App\Support\PhoneNumber;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class CallService
@@ -37,6 +38,20 @@ class CallService
             $query->where('lead_id', $lead->id);
             ($this->visibilityScope($user))($query);
         });
+    }
+
+    /**
+     * A lead's calls that count (see Call::real) and that the user may see,
+     * for the lead's activity feed.
+     *
+     * @return Collection<int, Call>
+     */
+    public function visibleForLead(Lead $lead, User $user): Collection
+    {
+        $query = Call::query()->real()->where('lead_id', $lead->id)->with('agent');
+        ($this->visibilityScope($user))($query);
+
+        return $query->get();
     }
 
     /**

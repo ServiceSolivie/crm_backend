@@ -24,7 +24,7 @@ class LeadRepository extends BaseRepository implements LeadRepositoryInterface
             'creator',
             'doublonOf',
             'nextAppointment',
-        ])->withCount('calls');
+        ])->withCount(['phoneCalls as calls_count' => fn ($query) => $query->real()]);
 
         if ($scope) {
             $scope($query);

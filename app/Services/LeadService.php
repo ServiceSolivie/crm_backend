@@ -11,7 +11,6 @@ use App\Enums\PermissionEnum;
 use App\Enums\RoleEnum;
 use App\Filters\LeadFilter;
 use App\Models\Lead;
-use App\Models\LeadCall;
 use App\Models\LeadNote;
 use App\Models\User;
 use App\Notifications\LeadReceivedNotification;
@@ -423,15 +422,6 @@ class LeadService extends BaseService
     {
         return $lead->notes()->create([
             'user_id' => $user->id,
-            'note' => $note,
-        ]);
-    }
-
-    public function logCall(Lead $lead, User $user, ?string $outcome = null, ?string $note = null): LeadCall
-    {
-        return $lead->calls()->create([
-            'user_id' => $user->id,
-            'outcome' => $outcome,
             'note' => $note,
         ]);
     }

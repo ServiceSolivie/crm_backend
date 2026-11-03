@@ -7,12 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Lead\AssignLeadRequest;
 use App\Http\Requests\Lead\BulkLeadRequest;
 use App\Http\Requests\Lead\CrossSellLeadRequest;
-use App\Http\Requests\Lead\StoreLeadCallRequest;
 use App\Http\Requests\Lead\StoreLeadNoteRequest;
 use App\Http\Requests\Lead\StoreLeadRequest;
 use App\Http\Requests\Lead\UpdateLeadRequest;
 use App\Http\Requests\Lead\UpdateLeadStatusRequest;
-use App\Http\Resources\LeadCallResource;
 use App\Http\Resources\LeadNoteResource;
 use App\Http\Resources\LeadResource;
 use App\Models\Lead;
@@ -156,7 +154,7 @@ class LeadController extends Controller
     {
         $this->authorize('view', $lead);
 
-        $lead->load(['leadSource', 'assignedAgent', 'team', 'creator', 'doublonOf', 'nextAppointment', 'lastFlag.changedBy'])->loadCount('calls');
+        $lead->load(['leadSource', 'assignedAgent', 'team', 'creator', 'doublonOf', 'nextAppointment', 'lastFlag.changedBy'])->loadCount(['phoneCalls as calls_count' => fn ($query) => $query->real()]);
 
         return $this->success(new LeadResource($lead));
     }
@@ -227,21 +225,5 @@ class LeadController extends Controller
         $note->load('user');
 
         return $this->created(new LeadNoteResource($note), 'Note added successfully');
-    }
-
-    public function storeCall(StoreLeadCallRequest $request, Lead $lead): JsonResponse
-    {
-        $this->authorize('manageCalls', $lead);
-
-        $call = $this->leadService->logCall(
-            $lead,
-            $request->user(),
-            $request->validated('outcome'),
-            $request->validated('note'),
-        );
-
-        $call->load('user');
-
-        return $this->created(new LeadCallResource($call), 'Call logged successfully');
     }
 }

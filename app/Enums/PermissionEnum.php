@@ -48,9 +48,8 @@ enum PermissionEnum: string implements HasLabel
     // Imported leads of a period with their status, as Excel — super admin only
     case LEADS_EXPORT_IMPORTED = 'leads.export_imported';
 
-    // Lead notes & calls
+    // Lead notes
     case LEAD_NOTES_MANAGE = 'lead_notes.manage';
-    case LEAD_CALLS_MANAGE = 'lead_calls.manage';
 
     // Pipeline
     case PIPELINE_VIEW = 'pipeline.view';
@@ -163,7 +162,6 @@ enum PermissionEnum: string implements HasLabel
             self::LEADS_EXPORT_IMPORTED => 'Export imported leads with their status',
 
             self::LEAD_NOTES_MANAGE => 'Manage lead notes',
-            self::LEAD_CALLS_MANAGE => 'Log lead calls',
 
             self::PIPELINE_VIEW => 'View pipeline',
             self::PIPELINE_UPDATE_STATUS => 'Move leads in pipeline',

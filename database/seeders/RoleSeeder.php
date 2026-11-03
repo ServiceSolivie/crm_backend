@@ -34,7 +34,6 @@ class RoleSeeder extends Seeder
             PermissionEnum::LEADS_EXPORT->value,
 
             PermissionEnum::LEAD_NOTES_MANAGE->value,
-            PermissionEnum::LEAD_CALLS_MANAGE->value,
 
             PermissionEnum::PIPELINE_VIEW->value,
             PermissionEnum::PIPELINE_UPDATE_STATUS->value,
@@ -86,7 +85,6 @@ class RoleSeeder extends Seeder
             PermissionEnum::LEADS_EXPORT->value,
 
             PermissionEnum::LEAD_NOTES_MANAGE->value,
-            PermissionEnum::LEAD_CALLS_MANAGE->value,
 
             PermissionEnum::PIPELINE_VIEW->value,
             PermissionEnum::PIPELINE_UPDATE_STATUS->value,
@@ -131,7 +129,6 @@ class RoleSeeder extends Seeder
             PermissionEnum::LEADS_UPDATE_STATUS->value,
 
             PermissionEnum::LEAD_NOTES_MANAGE->value,
-            PermissionEnum::LEAD_CALLS_MANAGE->value,
 
             PermissionEnum::PIPELINE_VIEW->value,
             PermissionEnum::PIPELINE_UPDATE_STATUS->value,

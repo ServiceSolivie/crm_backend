@@ -150,11 +150,6 @@ class Lead extends Model
         return $this->hasMany(LeadNote::class)->latest();
     }
 
-    public function calls(): HasMany
-    {
-        return $this->hasMany(LeadCall::class)->latest();
-    }
-
     public function statusHistories(): HasMany
     {
         return $this->hasMany(LeadStatusHistory::class)->latest();
@@ -245,7 +240,7 @@ class Lead extends Model
     }
 
     /**
-     * Phone calls made or received through Ringover (not the logged calls()).
+     * Phone calls made or received through Ringover.
      */
     public function phoneCalls(): HasMany
     {

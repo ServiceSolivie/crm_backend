@@ -110,14 +110,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Calls this user logged on leads.
-     */
-    public function calls(): HasMany
-    {
-        return $this->hasMany(LeadCall::class, 'user_id');
-    }
-
-    /**
      * Payments received on the leads assigned to this user.
      */
     public function assignedLeadPayments(): HasManyThrough
@@ -131,7 +123,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Phone calls made or received through Ringover (not the call logs above).
+     * Phone calls made or received through Ringover.
      */
     public function phoneCalls(): HasMany
     {

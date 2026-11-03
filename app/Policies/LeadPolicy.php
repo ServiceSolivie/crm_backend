@@ -65,11 +65,6 @@ class LeadPolicy
         return $user->can(PermissionEnum::LEAD_NOTES_MANAGE->value) && $this->canAccess($user, $lead);
     }
 
-    public function manageCalls(User $user, Lead $lead): bool
-    {
-        return $user->can(PermissionEnum::LEAD_CALLS_MANAGE->value) && $this->canAccess($user, $lead);
-    }
-
     /**
      * A user may access a lead if they can see all leads, see their team's
      * leads and the lead belongs to their team, or see assigned leads and

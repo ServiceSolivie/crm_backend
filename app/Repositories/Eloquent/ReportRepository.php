@@ -12,6 +12,7 @@ use App\Filters\AppointmentFilter;
 use App\Filters\LeadFilter;
 use App\Models\Appointment;
 use App\Models\Lead;
+use App\Models\Payment;
 use App\Models\Team;
 use App\Models\User;
 use App\Repositories\Contracts\ReportRepositoryInterface;
@@ -41,8 +42,8 @@ class ReportRepository implements ReportRepositoryInterface
                 $query->where('appointments.status', AppointmentStatusEnum::REALISE->value);
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
             }])
-            ->withCount(['calls as total_calls' => function (Builder $query) use ($from, $to) {
-                $this->applyDateRange($query, 'lead_calls.created_at', $from, $to);
+            ->withCount(['phoneCalls as total_calls' => function (Builder $query) use ($from, $to) {
+                $this->realCalls($query, $from, $to);
             }])
             ->withSum(['payments as revenue_received' => function (Builder $query) use ($from, $to) {
                 $query->where('payments.status', PaymentRecordStatusEnum::REUSSI->value);
@@ -78,9 +79,6 @@ class ReportRepository implements ReportRepositoryInterface
             ->withCount(['appointments as completed_appointments' => function (Builder $query) use ($from, $to) {
                 $query->where('status', AppointmentStatusEnum::REALISE->value);
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
-            }])
-            ->withCount(['calls as total_calls' => function (Builder $query) use ($from, $to) {
-                $this->applyDateRange($query, 'created_at', $from, $to);
             }])
             ->withCount(['phoneCalls as total_phone_calls' => function (Builder $query) use ($from, $to) {
                 $this->realCalls($query, $from, $to);
@@ -174,7 +172,7 @@ class ReportRepository implements ReportRepositoryInterface
             ->pluck('aggregate', 'payment_status');
 
         $leadIds = (clone $query)->select('id');
-        $totalReceived = \App\Models\Payment::received()->whereIn('lead_id', $leadIds)->sum('amount');
+        $totalReceived = Payment::received()->whereIn('lead_id', $leadIds)->sum('amount');
 
         return [
             'total_expected' => round((float) $totalExpected, 2),
@@ -285,8 +283,8 @@ class ReportRepository implements ReportRepositoryInterface
      */
     protected function realCalls(Builder $query, ?string $from, ?string $to): void
     {
-        $query->where('is_internal', false)->where('status', '!=', CallStatusEnum::INITIATED->value);
-        $this->applyDateRange($query, 'started_at', $from, $to);
+        $query->real();
+        $this->applyDateRange($query, 'calls.started_at', $from, $to);
     }
 
     protected function applyDateRange(Builder $query, string $column, ?string $from, ?string $to): void
