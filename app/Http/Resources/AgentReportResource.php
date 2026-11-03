@@ -37,7 +37,7 @@ class AgentReportResource extends BaseResource
                 'completion_rate' => $totalAppointments > 0 ? round(($completedAppointments / $totalAppointments) * 100, 2) : 0.0,
             ],
             'calls' => [
-                'total' => (int) $this->total_calls,
+                'total' => $totalPhoneCalls,
             ],
             // Calls made or received through Ringover.
             'phone_calls' => [

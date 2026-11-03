@@ -20,7 +20,6 @@ Route::middleware(['auth:sanctum', 'active'])->prefix('leads')->name('leads.')->
     Route::patch('/{lead}/status', [LeadController::class, 'updateStatus'])->name('update-status');
 
     Route::post('/{lead}/notes', [LeadController::class, 'storeNote'])->name('notes.store');
-    Route::post('/{lead}/calls', [LeadController::class, 'storeCall'])->name('calls.store');
 
     Route::get('/{lead}/activity', [LeadController::class, 'activity'])->name('activity');
     Route::get('/{lead}/neighbours', [LeadController::class, 'neighbours'])->name('neighbours');

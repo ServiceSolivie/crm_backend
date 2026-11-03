@@ -60,11 +60,11 @@ class Team extends Model
     }
 
     /**
-     * Calls logged on this team's leads.
+     * Phone calls made or received through Ringover by this team.
      */
-    public function calls(): HasManyThrough
+    public function phoneCalls(): HasMany
     {
-        return $this->hasManyThrough(LeadCall::class, Lead::class, 'team_id', 'lead_id');
+        return $this->hasMany(Call::class, 'team_id');
     }
 
     /**
