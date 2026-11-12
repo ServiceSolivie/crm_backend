@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\PermissionEnum;
 use App\Enums\RoleEnum;
 use App\Exceptions\ApiException;
 use App\Filters\TeamFilter;
@@ -33,7 +34,9 @@ class TeamService extends BaseService
     protected function visibilityScope(User $user): \Closure
     {
         return function (Builder $query) use ($user) {
-            if ($user->hasRole(RoleEnum::SUPER_ADMIN->value)) {
+            if ($user->hasRole(RoleEnum::SUPER_ADMIN->value)
+                || $user->can(PermissionEnum::REPORTS_VIEW_ALL->value)
+                || $user->can(PermissionEnum::DASHBOARD_VIEW_GLOBAL->value)) {
                 return;
             }
 
