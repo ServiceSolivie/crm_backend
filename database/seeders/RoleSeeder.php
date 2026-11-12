@@ -159,6 +159,15 @@ class RoleSeeder extends Seeder
             PermissionEnum::NOTIFICATIONS_VIEW->value,
         ]);
 
+        // Read-only: global dashboard, reports and the imported leads export
+        $marketing = Role::findOrCreate(RoleEnum::MARKETING->value);
+        $marketing->syncPermissions([
+            PermissionEnum::DASHBOARD_VIEW_GLOBAL->value,
+            PermissionEnum::REPORTS_VIEW_ALL->value,
+            PermissionEnum::REPORTS_EXPORT->value,
+            PermissionEnum::LEADS_EXPORT_IMPORTED->value,
+        ]);
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

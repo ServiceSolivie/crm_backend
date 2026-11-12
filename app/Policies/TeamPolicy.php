@@ -11,7 +11,10 @@ class TeamPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->can(PermissionEnum::TEAMS_VIEW->value);
+        // Global report and dashboard viewers need the team list for their filters
+        return $user->can(PermissionEnum::TEAMS_VIEW->value)
+            || $user->can(PermissionEnum::REPORTS_VIEW_ALL->value)
+            || $user->can(PermissionEnum::DASHBOARD_VIEW_GLOBAL->value);
     }
 
     public function view(User $user, Team $team): bool

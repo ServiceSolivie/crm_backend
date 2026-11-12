@@ -19,6 +19,7 @@ enum RoleEnum: string implements HasLabel
     case TEAM_LEADER = 'team_leader';
     case AGENT = 'agent';
     case GESTION = 'gestion';
+    case MARKETING = 'marketing';
 
     public function label(): string
     {
@@ -28,6 +29,7 @@ enum RoleEnum: string implements HasLabel
             self::TEAM_LEADER => 'Team Leader',
             self::AGENT => 'Agent',
             self::GESTION => 'Gestion',
+            self::MARKETING => 'Marketing',
         };
     }
 }
