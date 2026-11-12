@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\PermissionEnum;
 use App\Models\User;
 use App\Repositories\Contracts\DashboardRepositoryInterface;
+use App\Support\LeadSourceScope;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -123,6 +124,8 @@ class DashboardService
             if ($agentId) {
                 $query->where('user_id', $agentId);
             }
+
+            LeadSourceScope::viaLead($query, $user->allowedSourceIds());
         };
     }
 
@@ -137,6 +140,11 @@ class DashboardService
     }
 
     protected function revenueScope(User $user, ?int $teamId = null, ?int $agentId = null): ?Closure
+    {
+        return $this->withSources($this->baseRevenueScope($user, $teamId, $agentId), $user->allowedSourceIds());
+    }
+
+    protected function baseRevenueScope(User $user, ?int $teamId, ?int $agentId): ?Closure
     {
         if ($user->can(PermissionEnum::REVENUE_VIEW_ALL->value)) {
             return $this->withLeadFilters(null, $teamId, $agentId);
@@ -172,9 +180,24 @@ class DashboardService
      * scope, it can only narrow results — it can never let a user see data
      * outside their permission boundary.
      *
-     * @return array{0: ?\Closure, 1: ?\Closure, 2: string}
+     * @return array{0: ?Closure, 1: ?Closure, 2: string}
      */
     protected function scopes(User $user, ?int $teamId = null, ?int $agentId = null): array
+    {
+        [$leadScope, $appointmentScope, $level] = $this->baseScopes($user, $teamId, $agentId);
+        $sourceIds = $user->allowedSourceIds();
+
+        return [
+            $this->withSources($leadScope, $sourceIds),
+            $this->withSources($appointmentScope, $sourceIds, viaLead: true),
+            $level,
+        ];
+    }
+
+    /**
+     * @return array{0: ?Closure, 1: ?Closure, 2: string}
+     */
+    protected function baseScopes(User $user, ?int $teamId, ?int $agentId): array
     {
         $appointmentScope = $this->appointments->visibilityScope($user);
 
@@ -215,6 +238,26 @@ class DashboardService
             $appointmentScope,
             'NONE',
         ];
+    }
+
+    /**
+     * Limit a scope to the user's lead sources (marketing). Null ids = no limit.
+     *
+     * @param  list<int>|null  $sourceIds
+     */
+    protected function withSources(?Closure $baseScope, ?array $sourceIds, bool $viaLead = false): ?Closure
+    {
+        if ($sourceIds === null) {
+            return $baseScope;
+        }
+
+        return function (Builder $query) use ($baseScope, $sourceIds, $viaLead) {
+            if ($baseScope) {
+                $baseScope($query);
+            }
+
+            $viaLead ? LeadSourceScope::viaLead($query, $sourceIds) : LeadSourceScope::leads($query, $sourceIds);
+        };
     }
 
     /**

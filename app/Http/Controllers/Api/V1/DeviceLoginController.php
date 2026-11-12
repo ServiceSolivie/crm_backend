@@ -38,7 +38,7 @@ class DeviceLoginController extends Controller
         }
 
         return $this->success([
-            'user' => new UserResource($result['user']),
+            'user' => new UserResource($result['user']->load('leadSources')),
             'token' => $result['token'],
             'device_mark' => $result['mark'],
         ], 'Login successful');

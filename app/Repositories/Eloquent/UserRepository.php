@@ -17,7 +17,7 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
 
     public function paginateFiltered(UserFilter $filters, int $perPage = 15, ?Closure $scope = null): LengthAwarePaginator
     {
-        $query = $this->newQuery()->with(['roles', 'team']);
+        $query = $this->newQuery()->with(['roles', 'team', 'leadSources']);
 
         if ($scope) {
             $scope($query);

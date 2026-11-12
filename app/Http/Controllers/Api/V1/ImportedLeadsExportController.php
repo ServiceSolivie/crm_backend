@@ -23,7 +23,7 @@ class ImportedLeadsExportController extends Controller
     public function summary(ImportedLeadsExportRequest $request): JsonResponse
     {
         $range = $this->range($request);
-        $query = $this->exports->query($range, $request->origin());
+        $query = $this->exports->query($range, $request->origin(), $request->user()->allowedSourceIds());
 
         return $this->success([
             'period' => $range['period'],
@@ -39,7 +39,7 @@ class ImportedLeadsExportController extends Controller
     public function download(ImportedLeadsExportRequest $request): BinaryFileResponse
     {
         $range = $this->range($request);
-        $query = $this->exports->query($range, $request->origin());
+        $query = $this->exports->query($range, $request->origin(), $request->user()->allowedSourceIds());
         $path = tempnam(sys_get_temp_dir(), 'leads-export-');
 
         $written = $this->exports->write($query, $range, $request->origin(), $this->exports->summary($query), $request->user(), $path);

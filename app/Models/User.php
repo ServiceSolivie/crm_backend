@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\RoleEnum;
 use App\Traits\Filterable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -115,6 +116,31 @@ class User extends Authenticatable
     public function assignedLeadPayments(): HasManyThrough
     {
         return $this->hasManyThrough(Payment::class, Lead::class, 'assigned_to', 'lead_id');
+    }
+
+    /**
+     * Lead sources a marketing user is limited to.
+     */
+    public function leadSources(): BelongsToMany
+    {
+        return $this->belongsToMany(LeadSource::class)->withTimestamps();
+    }
+
+    /**
+     * Source ids this user's data is limited to, or null for no limit.
+     * Only marketing users with at least one source are limited.
+     *
+     * @return list<int>|null
+     */
+    public function allowedSourceIds(): ?array
+    {
+        if (! $this->hasRole(RoleEnum::MARKETING->value)) {
+            return null;
+        }
+
+        $ids = $this->leadSources()->pluck('lead_sources.id')->map(fn ($id) => (int) $id)->all();
+
+        return $ids ?: null;
     }
 
     public function vaultCredentials(): BelongsToMany

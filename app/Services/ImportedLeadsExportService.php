@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Models\Lead;
+use App\Models\LeadNote;
 use App\Models\LeadSource;
 use App\Models\LeadStatusHistory;
 use App\Models\User;
+use App\Support\LeadSourceScope;
 use App\Support\LeadStatusCatalog;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
@@ -52,10 +54,10 @@ class ImportedLeadsExportService
 
     private const HEADERS = [
         'Référence', 'Reçu le', 'Soumis le', 'Origine', 'Prénom', 'Nom', 'Téléphone', 'E-mail', 'Assurance', 'Source',
-        'Statut', 'Étape', 'Statut changé le', 'Agent', 'Équipe', 'Doublon', 'DVC', 'Paiement', 'Validé le',
+        'Statut', 'Étape', 'Statut changé le', 'Dernière note', 'Note de', 'Note le', 'Agent', 'Équipe', 'Doublon', 'DVC', 'Paiement', 'Validé le',
     ];
 
-    private const WIDTHS = [16, 17, 17, 22, 16, 18, 16, 28, 22, 16, 20, 12, 17, 20, 16, 9, 22, 18, 17];
+    private const WIDTHS = [16, 17, 17, 22, 16, 18, 16, 28, 22, 16, 20, 12, 17, 60, 20, 17, 20, 16, 9, 22, 18, 17];
 
     public function __construct(protected LeadStatusCatalog $statuses) {}
 
@@ -95,9 +97,12 @@ class ImportedLeadsExportService
     /**
      * @param  array{from: CarbonImmutable, to: CarbonImmutable}  $range
      */
-    public function query(array $range, string $origin): Builder
+    /**
+     * @param  list<int>|null  $sourceIds  Sources the user is limited to (marketing), null = all
+     */
+    public function query(array $range, string $origin, ?array $sourceIds = null): Builder
     {
-        return Lead::query()
+        $query = Lead::query()
             ->where(fn (Builder $q) => match ($origin) {
                 'google_sheets' => $q->whereNotNull('sheet_row_key'),
                 'file' => $q->whereNotNull('lead_import_id'),
@@ -107,6 +112,8 @@ class ImportedLeadsExportService
                 $range['from']->utc()->format('Y-m-d H:i:s'),
                 $range['to']->utc()->format('Y-m-d H:i:s'),
             ]);
+
+        return LeadSourceScope::leads($query, $sourceIds, 'leads.lead_source_id');
     }
 
     /**
@@ -453,7 +460,23 @@ class ImportedLeadsExportService
                 ->latest('id')
                 ->limit(1),
             ])
+            // Latest note left on the lead, with who wrote it and when
+            ->addSelect([
+                'latest_note' => $this->latestNote()->select('note'),
+                'latest_note_at' => $this->latestNote()->select('created_at'),
+                'latest_note_by' => $this->latestNote()
+                    ->join('users', 'users.id', '=', 'lead_notes.user_id')
+                    ->select('users.name'),
+            ])
             ->with(['leadSource:id,name', 'assignedAgent:id,name', 'team:id,name', 'leadImport:id,file_name']);
+    }
+
+    protected function latestNote(): Builder
+    {
+        return LeadNote::query()
+            ->whereColumn('lead_notes.lead_id', 'leads.id')
+            ->orderByDesc('lead_notes.id')
+            ->limit(1);
     }
 
     /**
@@ -475,6 +498,10 @@ class ImportedLeadsExportService
             $this->statuses->label($lead->status_code),
             self::STAGES[$this->statuses->stage($lead->status_code)] ?? null,
             $this->local($lead->status_changed_at ? CarbonImmutable::parse($lead->status_changed_at, 'UTC') : null),
+            // Excel caps a cell at 32,767 characters
+            $lead->latest_note !== null ? mb_substr(trim($lead->latest_note), 0, 32000) : null,
+            $lead->latest_note_by,
+            $this->local($lead->latest_note_at ? CarbonImmutable::parse($lead->latest_note_at, 'UTC') : null),
             $lead->assignedAgent?->name ?? 'Non assigné',
             $lead->team?->name,
             $lead->is_doublon ? 'Oui' : 'Non',

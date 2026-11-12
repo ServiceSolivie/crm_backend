@@ -16,6 +16,7 @@ use App\Models\Payment;
 use App\Models\Team;
 use App\Models\User;
 use App\Repositories\Contracts\ReportRepositoryInterface;
+use App\Support\LeadSourceScope;
 use App\Support\LeadStatusCatalog;
 use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -23,29 +24,35 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ReportRepository implements ReportRepositoryInterface
 {
-    public function paginateTeamReport(?Closure $scope, ?int $teamId, ?string $from, ?string $to, int $perPage): LengthAwarePaginator
+    public function paginateTeamReport(?Closure $scope, ?int $teamId, ?string $from, ?string $to, int $perPage, ?array $sourceIds = null): LengthAwarePaginator
     {
         $query = Team::query()
             ->with('manager')
             ->withCount('members')
-            ->withCount(['leads as total_leads' => function (Builder $query) use ($from, $to) {
+            ->withCount(['leads as total_leads' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::leads($query, $sourceIds);
                 $this->applyDateRange($query, 'created_at', $from, $to);
             }])
-            ->withCount(['leads as validated_leads' => function (Builder $query) use ($from, $to) {
+            ->withCount(['leads as validated_leads' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::leads($query, $sourceIds);
                 $query->where('status', LeadStatusEnum::VALIDE->value);
                 $this->applyDateRange($query, 'created_at', $from, $to);
             }])
-            ->withCount(['appointments as total_appointments' => function (Builder $query) use ($from, $to) {
+            ->withCount(['appointments as total_appointments' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::leads($query, $sourceIds, 'leads.lead_source_id');
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
             }])
-            ->withCount(['appointments as completed_appointments' => function (Builder $query) use ($from, $to) {
+            ->withCount(['appointments as completed_appointments' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::leads($query, $sourceIds, 'leads.lead_source_id');
                 $query->where('appointments.status', AppointmentStatusEnum::REALISE->value);
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
             }])
-            ->withCount(['phoneCalls as total_calls' => function (Builder $query) use ($from, $to) {
+            ->withCount(['phoneCalls as total_calls' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::viaLead($query, $sourceIds);
                 $this->realCalls($query, $from, $to);
             }])
-            ->withSum(['payments as revenue_received' => function (Builder $query) use ($from, $to) {
+            ->withSum(['payments as revenue_received' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::leads($query, $sourceIds, 'leads.lead_source_id');
                 $query->where('payments.status', PaymentRecordStatusEnum::REUSSI->value);
                 $this->applyDateRange($query, 'payments.payment_date', $from, $to);
             }], 'amount');
@@ -61,37 +68,45 @@ class ReportRepository implements ReportRepositoryInterface
         return $query->paginate($perPage);
     }
 
-    public function paginateAgentReport(?Closure $scope, ?int $teamId, ?string $from, ?string $to, int $perPage): LengthAwarePaginator
+    public function paginateAgentReport(?Closure $scope, ?int $teamId, ?string $from, ?string $to, int $perPage, ?array $sourceIds = null): LengthAwarePaginator
     {
         $query = User::query()
             ->whereHas('roles', fn (Builder $query) => $query->where('name', RoleEnum::AGENT->value))
             ->with('team')
-            ->withCount(['assignedLeads as total_leads' => function (Builder $query) use ($from, $to) {
+            ->withCount(['assignedLeads as total_leads' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::leads($query, $sourceIds);
                 $this->applyDateRange($query, 'created_at', $from, $to);
             }])
-            ->withCount(['assignedLeads as validated_leads' => function (Builder $query) use ($from, $to) {
+            ->withCount(['assignedLeads as validated_leads' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::leads($query, $sourceIds);
                 $query->where('status', LeadStatusEnum::VALIDE->value);
                 $this->applyDateRange($query, 'created_at', $from, $to);
             }])
-            ->withCount(['appointments as total_appointments' => function (Builder $query) use ($from, $to) {
+            ->withCount(['appointments as total_appointments' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::viaLead($query, $sourceIds);
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
             }])
-            ->withCount(['appointments as completed_appointments' => function (Builder $query) use ($from, $to) {
+            ->withCount(['appointments as completed_appointments' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::viaLead($query, $sourceIds);
                 $query->where('status', AppointmentStatusEnum::REALISE->value);
                 $this->applyDateRange($query, 'scheduled_at', $from, $to);
             }])
-            ->withCount(['phoneCalls as total_phone_calls' => function (Builder $query) use ($from, $to) {
+            ->withCount(['phoneCalls as total_phone_calls' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::viaLead($query, $sourceIds);
                 $this->realCalls($query, $from, $to);
             }])
-            ->withCount(['phoneCalls as answered_phone_calls' => function (Builder $query) use ($from, $to) {
+            ->withCount(['phoneCalls as answered_phone_calls' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::viaLead($query, $sourceIds);
                 $this->realCalls($query, $from, $to);
                 $query->where('status', CallStatusEnum::COMPLETED->value);
             }])
-            ->withSum(['phoneCalls as talk_seconds' => function (Builder $query) use ($from, $to) {
+            ->withSum(['phoneCalls as talk_seconds' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::viaLead($query, $sourceIds);
                 $this->realCalls($query, $from, $to);
                 $query->where('status', CallStatusEnum::COMPLETED->value);
             }], 'talk_seconds')
-            ->withSum(['assignedLeadPayments as revenue_received' => function (Builder $query) use ($from, $to) {
+            ->withSum(['assignedLeadPayments as revenue_received' => function (Builder $query) use ($from, $to, $sourceIds) {
+                LeadSourceScope::leads($query, $sourceIds, 'leads.lead_source_id');
                 $query->where('payments.status', PaymentRecordStatusEnum::REUSSI->value);
                 $this->applyDateRange($query, 'payments.payment_date', $from, $to);
             }], 'amount');
