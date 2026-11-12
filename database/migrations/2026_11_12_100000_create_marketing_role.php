@@ -6,7 +6,7 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * Marketing: read-only access to the global dashboard and the reports.
+ * Marketing: read-only access to the global dashboard, the reports and the imported leads export.
  */
 return new class extends Migration
 {
@@ -14,6 +14,7 @@ return new class extends Migration
         'dashboard.view_global',
         'reports.view_all',
         'reports.export',
+        'leads.export_imported',
     ];
 
     public function up(): void
