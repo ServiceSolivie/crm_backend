@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Http\Requests\Auth\ChangePasswordRequest;
-use App\Http\Requests\Auth\UpdateProfileRequest;
 
 class AuthController extends Controller
 {
@@ -25,7 +25,7 @@ class AuthController extends Controller
         }
 
         return $this->success([
-            'user' => new UserResource($result['user']),
+            'user' => new UserResource($result['user']->load('leadSources')),
             'token' => $result['token'],
             'device' => $result['device'],
             // The next "remember this machine" mark, when the PIN was skipped
@@ -42,7 +42,7 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return $this->success(new UserResource($request->user()), 'Authenticated user');
+        return $this->success(new UserResource($request->user()->load('leadSources')), 'Authenticated user');
     }
 
     public function updateProfile(UpdateProfileRequest $request): JsonResponse

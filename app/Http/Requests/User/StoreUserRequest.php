@@ -25,6 +25,8 @@ class StoreUserRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:30'],
             'team_id' => ['nullable', 'integer', 'exists:teams,id'],
             'role' => ['required', Rule::in(RoleEnum::values())],
+            'lead_source_ids' => ['sometimes', 'nullable', 'array'],
+            'lead_source_ids.*' => ['integer', 'distinct', 'exists:lead_sources,id'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

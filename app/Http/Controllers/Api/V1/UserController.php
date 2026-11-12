@@ -43,7 +43,7 @@ class UserController extends Controller
     {
         $this->authorize('view', $user);
 
-        $user->load(['roles', 'team']);
+        $user->load(['roles', 'team', 'leadSources']);
 
         return $this->success(new UserResource($user));
     }
@@ -54,7 +54,7 @@ class UserController extends Controller
 
         $user = $this->userService->updateUser($user, $request->validated());
 
-        return $this->success(new UserResource($user->load(['roles', 'team'])), 'User updated successfully');
+        return $this->success(new UserResource($user->load(['roles', 'team', 'leadSources'])), 'User updated successfully');
     }
 
     public function destroy(User $user): JsonResponse

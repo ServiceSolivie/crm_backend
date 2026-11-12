@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\RoleEnum;
 use App\Exceptions\ApiException;
 use App\Filters\UserFilter;
 use App\Models\User;
@@ -21,15 +22,17 @@ class UserService
     public function createUser(array $attributes): User
     {
         $role = $attributes['role'];
-        unset($attributes['role']);
+        $sourceIds = $attributes['lead_source_ids'] ?? [];
+        unset($attributes['role'], $attributes['lead_source_ids']);
 
         $attributes['password'] = Hash::make($attributes['password']);
         $attributes['is_active'] = $attributes['is_active'] ?? true;
 
         $user = $this->users->create($attributes);
         $user->syncRoles([$role]);
+        $this->syncLeadSources($user, $sourceIds);
 
-        return $user->load('roles');
+        return $user->load(['roles', 'leadSources']);
     }
 
     public function updateUser(User $user, array $attributes): User
@@ -43,9 +46,18 @@ class UserService
             unset($attributes['role']);
         }
 
+        $sourcesSent = array_key_exists('lead_source_ids', $attributes);
+        $sourceIds = $attributes['lead_source_ids'] ?? [];
+        unset($attributes['lead_source_ids']);
+
         $user->update($attributes);
 
-        return $user->refresh()->load('roles');
+        // Clear them when the role is no longer marketing, even if not sent
+        if ($sourcesSent || ! $user->hasRole(RoleEnum::MARKETING->value)) {
+            $this->syncLeadSources($user, $sourceIds);
+        }
+
+        return $user->refresh()->load(['roles', 'leadSources']);
     }
 
     public function deleteUser(User $user): bool
@@ -57,7 +69,21 @@ class UserService
     {
         $user->syncRoles([$role]);
 
+        if ($role !== RoleEnum::MARKETING->value) {
+            $this->syncLeadSources($user, []);
+        }
+
         return $user->load('roles');
+    }
+
+    /**
+     * Only marketing users keep lead sources; anyone else has none.
+     *
+     * @param  list<int>  $sourceIds
+     */
+    protected function syncLeadSources(User $user, array $sourceIds): void
+    {
+        $user->leadSources()->sync($user->hasRole(RoleEnum::MARKETING->value) ? $sourceIds : []);
     }
 
     public function resetPassword(User $target, string $newPassword): User

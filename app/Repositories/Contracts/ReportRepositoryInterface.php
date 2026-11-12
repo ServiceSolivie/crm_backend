@@ -12,12 +12,12 @@ interface ReportRepositoryInterface
     /**
      * Per-team performance report: members, leads and appointments totals.
      */
-    public function paginateTeamReport(?Closure $scope, ?int $teamId, ?string $from, ?string $to, int $perPage): LengthAwarePaginator;
+    public function paginateTeamReport(?Closure $scope, ?int $teamId, ?string $from, ?string $to, int $perPage, ?array $sourceIds = null): LengthAwarePaginator;
 
     /**
      * Per-agent performance report: assigned leads and appointments totals.
      */
-    public function paginateAgentReport(?Closure $scope, ?int $teamId, ?string $from, ?string $to, int $perPage): LengthAwarePaginator;
+    public function paginateAgentReport(?Closure $scope, ?int $teamId, ?string $from, ?string $to, int $perPage, ?array $sourceIds = null): LengthAwarePaginator;
 
     /**
      * Conversion report: leads grouped by a dimension (source, team, agent

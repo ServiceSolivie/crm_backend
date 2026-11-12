@@ -23,6 +23,10 @@ class UserResource extends BaseResource
                 'id' => $this->team->id,
                 'name' => $this->team->name,
             ] : null),
+            // Marketing only: sources the user's data is limited to (empty = all)
+            'lead_sources' => $this->whenLoaded('leadSources', fn () => $this->leadSources
+                ->map(fn ($source) => ['id' => $source->id, 'name' => $source->name])
+                ->values()),
             'ringover' => [
                 'is_linked' => $this->isRingoverLinked(),
                 'user_id' => $this->ringover_user_id,
