@@ -54,6 +54,25 @@ enum LeadStatusEnum: string implements HasLabel
     }
 
     /**
+     * Statuses of a lead the back office holds: once there, only users
+     * holding leads.set_review_status may move it. Mirrors GESTION_LOCKED_STATUSES
+     * in the frontend's utils/enums.js.
+     *
+     * @return array<int, self>
+     */
+    public static function gestionLockedStatuses(): array
+    {
+        return [
+            self::GESTION,
+            self::VALIDE,
+            self::CALL2_OK,
+            self::CALL2_KO,
+            self::PDG_OK,
+            self::PDG_KO,
+        ];
+    }
+
+    /**
      * Pipeline stage the status belongs to. Mirrors LEAD_STATUS in the
      * frontend's utils/enums.js — keep both in sync.
      */
