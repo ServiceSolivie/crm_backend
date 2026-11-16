@@ -3,7 +3,7 @@
 namespace App\Http\Requests\DocumentRequirement;
 
 use App\Enums\ClientTypeEnum;
-use App\Enums\InsuranceTypeEnum;
+use App\Support\InsuranceTypeCatalog;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,7 +20,7 @@ class SyncRequirementsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'insurance_type' => ['required', 'string', Rule::in(InsuranceTypeEnum::values())],
+            'insurance_type' => ['required', 'string', Rule::in(app(InsuranceTypeCatalog::class)->codes())],
             'client_type' => ['nullable', 'string', Rule::in(ClientTypeEnum::values())],
             'document_type_ids' => ['present', 'array'],
             'document_type_ids.*' => ['integer', Rule::exists('document_types', 'id')],

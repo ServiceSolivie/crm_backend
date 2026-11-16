@@ -11,6 +11,8 @@ use App\Models\Appointment;
 use App\Models\DocumentType;
 use App\Models\Lead;
 use App\Models\User;
+use App\Support\InsuranceTypeCatalog;
+use App\Support\LeadSection;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -92,9 +94,9 @@ class LeadWorkspaceService
      *
      * @return array<string, int>
      */
-    public function counts(User $user): array
+    public function counts(User $user, ?string $section = null): array
     {
-        $base = fn () => $this->visibleLeads($user);
+        $base = fn () => LeadSection::apply($this->visibleLeads($user), $section);
 
         return [
             'all' => $base()->count(),
@@ -118,7 +120,11 @@ class LeadWorkspaceService
         $open = fn () => $this->visibleAppointments($user)->whereIn('status', AppointmentStatusEnum::openValues());
 
         return [
-            'leads_total' => $this->visibleLeads($user)->count(),
+            // « Leads » page only; each extra page has its own counter
+            'leads_total' => LeadSection::apply($this->visibleLeads($user), LeadSection::GENERAL)->count(),
+            'leads_by_page' => collect(app(InsuranceTypeCatalog::class)->pages())
+                ->map(fn (array $page, string $slug) => LeadSection::apply($this->visibleLeads($user), $slug)->count())
+                ->all(),
             'appointments_overdue' => $open()->where('scheduled_at', '<', now())->count(),
             'appointments_today' => $open()->whereBetween('scheduled_at', [now(), now()->endOfDay()])->count(),
             'follow_ups_due' => $this->counts($user)['due_today'],
@@ -160,7 +166,7 @@ class LeadWorkspaceService
                 'reference' => $lead->reference,
                 'name' => trim("{$lead->first_name} {$lead->last_name}"),
                 'status' => $lead->status_code,
-                'insurance_type' => $lead->insurance_type?->value,
+                'insurance_type' => $lead->insurance_type,
                 'assigned_agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,
                 'created_at' => $lead->created_at?->toIso8601String(),
             ];
@@ -335,7 +341,7 @@ class LeadWorkspaceService
                     'reference' => $lead->reference,
                     'first_name' => $lead->first_name,
                     'last_name' => $lead->last_name,
-                    'insurance_type' => $lead->insurance_type?->value,
+                    'insurance_type' => $lead->insurance_type,
                 ],
                 'documents' => $lead->lastFlag?->meta['missing_documents'] ?? [],
                 'label' => $lead->lastFlag?->comment,

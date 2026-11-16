@@ -2,7 +2,7 @@
 
 namespace App\Http\Resources;
 
-use App\Enums\InsuranceTypeEnum;
+use App\Support\InsuranceTypeCatalog;
 use Illuminate\Http\Request;
 
 class ConversionReportResource extends BaseResource
@@ -16,7 +16,7 @@ class ConversionReportResource extends BaseResource
         $validated = (int) $this->validated;
 
         $dimensionName = $this->dimension_name
-            ?? InsuranceTypeEnum::tryFrom((string) $this->dimension_id)?->label()
+            ?? app(InsuranceTypeCatalog::class)->label((string) $this->dimension_id)
             ?? (string) $this->dimension_id;
 
         return [

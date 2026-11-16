@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\InsuranceTypeEnum;
 use App\Enums\PermissionEnum;
 use App\Exceptions\ApiException;
 use App\Models\Contract;
@@ -13,6 +12,7 @@ use App\Models\User;
 use App\Repositories\Contracts\ContractRepositoryInterface;
 use App\Support\Dvc\DvcFieldRules;
 use App\Support\Dvc\DvcPrefill;
+use App\Support\InsuranceTypeCatalog;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -54,8 +54,8 @@ class ContractService
             ->map(fn (DvcType $type) => [
                 'key' => $type->templateKey(),
                 'label' => $type->label,
-                'insurance_type' => $type->insurance_type->value,
-                'insurance_type_label' => $type->insurance_type->label(),
+                'insurance_type' => $type->insurance_type,
+                'insurance_type_label' => app(InsuranceTypeCatalog::class)->label($type->insurance_type),
                 'filename_prefix' => $type->filename_prefix,
                 'version_id' => $type->currentVersion->id,
                 'version' => $type->currentVersion->version,
@@ -221,11 +221,11 @@ class ContractService
     protected function dvcType(string $templateKey): DvcType
     {
         $insuranceType = str_ends_with($templateKey, '_dvc')
-            ? InsuranceTypeEnum::tryFrom(strtoupper(substr($templateKey, 0, -4)))
+            ? strtoupper(substr($templateKey, 0, -4))
             : null;
 
         $type = $insuranceType
-            ? DvcType::query()->with('currentVersion')->where('insurance_type', $insuranceType->value)->first()
+            ? DvcType::query()->with('currentVersion')->where('insurance_type', $insuranceType)->first()
             : null;
 
         if (! $type || ! $type->is_active || ! $type->currentVersion) {

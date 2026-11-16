@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -23,7 +22,8 @@ return new class extends Migration
             $table->string('city')->nullable();
             $table->date('birth_date')->nullable();
             $table->foreignId('lead_source_id')->nullable()->constrained('lead_sources')->nullOnDelete();
-            $table->enum('insurance_type', InsuranceTypeEnum::values());
+            // Became VARCHAR with the managed insurance types (2026_11_16_100000)
+            $table->enum('insurance_type', ['AUTO', 'MOTO', 'RC_PRO', 'MUTUELLE_SANTE', 'EMPRUNTEUR', 'CREDIT_CONSOMMATION', 'RACHAT_CREDIT', 'CREDIT_IMMOBILIER', 'DECENNALE', 'TAXI_VTC', 'AUTRE']);
             $table->enum('status', LeadStatusEnum::values())->default(LeadStatusEnum::NOUVEAU->value);
             $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('team_id')->nullable()->constrained('teams')->nullOnDelete();

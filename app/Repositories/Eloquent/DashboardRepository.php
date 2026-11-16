@@ -4,7 +4,6 @@ namespace App\Repositories\Eloquent;
 
 use App\Enums\AppointmentStatusEnum;
 use App\Enums\CallStatusEnum;
-use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentStatusEnum;
@@ -13,6 +12,7 @@ use App\Models\Call;
 use App\Models\Lead;
 use App\Models\Payment;
 use App\Repositories\Contracts\DashboardRepositoryInterface;
+use App\Support\InsuranceTypeCatalog;
 use App\Support\LeadStatusCatalog;
 use Carbon\Carbon;
 use Closure;
@@ -130,7 +130,7 @@ class DashboardRepository implements DashboardRepositoryInterface
 
         return [
             'by_status' => $this->fillCounts(app(LeadStatusCatalog::class)->codes(), $byStatus),
-            'by_insurance_type' => $this->fillCounts(InsuranceTypeEnum::values(), $byInsuranceType),
+            'by_insurance_type' => $this->fillCounts(app(InsuranceTypeCatalog::class)->codes(), $byInsuranceType),
         ];
     }
 
@@ -285,8 +285,8 @@ class DashboardRepository implements DashboardRepositoryInterface
             ->orderBy('month')
             ->get()
             ->map(function ($row) use ($leadScope) {
-                $monthStart = Carbon::parse($row->month . '-01')->startOfDay();
-                $monthEnd = Carbon::parse($row->month . '-01')->endOfMonth()->endOfDay();
+                $monthStart = Carbon::parse($row->month.'-01')->startOfDay();
+                $monthEnd = Carbon::parse($row->month.'-01')->endOfMonth()->endOfDay();
 
                 $received = Payment::received()->whereIn(
                     'lead_id',

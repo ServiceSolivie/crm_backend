@@ -4,12 +4,12 @@ namespace App\Services;
 
 use App\Enums\ClientTypeEnum;
 use App\Enums\DvcStatusEnum;
-use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentStatusEnum;
 use App\Enums\PermissionEnum;
 use App\Enums\RoleEnum;
 use App\Filters\LeadFilter;
+use App\Models\InsuranceType;
 use App\Models\Lead;
 use App\Models\LeadNote;
 use App\Models\User;
@@ -153,8 +153,7 @@ class LeadService extends BaseService
         $data['status'] = $data['status'] ?? LeadStatusEnum::NOUVEAU->value;
 
         if (empty($data['client_type']) && ! empty($data['insurance_type'])) {
-            $insuranceType = InsuranceTypeEnum::tryFrom($data['insurance_type']);
-            if ($insuranceType === InsuranceTypeEnum::AUTO || $insuranceType === InsuranceTypeEnum::MOTO) {
+            if (in_array($data['insurance_type'], [InsuranceType::AUTO, InsuranceType::MOTO], true)) {
                 $data['client_type'] = ClientTypeEnum::INDIVIDUAL->value;
             }
         }

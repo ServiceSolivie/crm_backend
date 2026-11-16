@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\InsuranceTypeCatalog;
 use Illuminate\Http\Request;
 
 class DvcTypeResource extends BaseResource
@@ -13,8 +14,8 @@ class DvcTypeResource extends BaseResource
     {
         return [
             'id' => $this->id,
-            'insurance_type' => $this->insurance_type->value,
-            'insurance_type_label' => $this->insurance_type->label(),
+            'insurance_type' => $this->insurance_type,
+            'insurance_type_label' => app(InsuranceTypeCatalog::class)->label($this->insurance_type),
             'template_key' => $this->templateKey(),
             'label' => $this->label,
             'filename_prefix' => $this->filename_prefix,

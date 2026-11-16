@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\InsuranceTypeEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -29,7 +28,6 @@ class DvcType extends Model
     protected function casts(): array
     {
         return [
-            'insurance_type' => InsuranceTypeEnum::class,
             'is_active' => 'boolean',
         ];
     }
@@ -41,7 +39,7 @@ class DvcType extends Model
      */
     public function templateKey(): string
     {
-        return strtolower($this->insurance_type->value).'_dvc';
+        return strtolower($this->insurance_type).'_dvc';
     }
 
     public function currentVersion(): BelongsTo

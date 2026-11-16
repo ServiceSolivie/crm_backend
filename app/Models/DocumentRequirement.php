@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\ClientTypeEnum;
-use App\Enums\InsuranceTypeEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -18,7 +17,6 @@ class DocumentRequirement extends Model
     protected function casts(): array
     {
         return [
-            'insurance_type' => InsuranceTypeEnum::class,
             'client_type' => ClientTypeEnum::class,
         ];
     }

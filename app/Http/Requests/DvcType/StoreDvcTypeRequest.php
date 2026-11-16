@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\DvcType;
 
-use App\Enums\InsuranceTypeEnum;
+use App\Support\InsuranceTypeCatalog;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,7 +20,7 @@ class StoreDvcTypeRequest extends FormRequest
     {
         return [
             // One DVC type per insurance type
-            'insurance_type' => ['required', Rule::enum(InsuranceTypeEnum::class), 'unique:dvc_types,insurance_type'],
+            'insurance_type' => ['required', Rule::in(app(InsuranceTypeCatalog::class)->codes()), 'unique:dvc_types,insurance_type'],
             'label' => ['required', 'string', 'max:120'],
             'filename_prefix' => ['nullable', 'string', 'max:40', 'regex:/^[A-Z0-9][A-Z0-9-]*$/'],
             'is_active' => ['sometimes', 'boolean'],

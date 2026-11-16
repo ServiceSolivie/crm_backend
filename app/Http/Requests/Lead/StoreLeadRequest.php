@@ -3,9 +3,9 @@
 namespace App\Http\Requests\Lead;
 
 use App\Enums\ClientTypeEnum;
-use App\Enums\InsuranceTypeEnum;
 use App\Rules\ReviewStatusAllowed;
 use App\Rules\ValidLeadStatus;
+use App\Support\InsuranceTypeCatalog;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,7 +30,7 @@ class StoreLeadRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:255'],
             'birth_date' => ['nullable', 'date'],
             'lead_source_id' => ['nullable', 'integer', 'exists:lead_sources,id'],
-            'insurance_type' => ['required', Rule::in(InsuranceTypeEnum::values())],
+            'insurance_type' => ['required', Rule::in(app(InsuranceTypeCatalog::class)->selectable())],
             'client_type' => ['nullable', Rule::in(ClientTypeEnum::values())],
             'company_status' => ['nullable', 'string', 'max:255'],
             'company_legal_form' => ['nullable', 'string', 'max:255'],
