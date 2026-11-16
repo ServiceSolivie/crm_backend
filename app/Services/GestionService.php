@@ -188,7 +188,7 @@ class GestionService
                 'last_name' => $lead->last_name,
                 'phone' => $lead->phone,
                 'is_callable' => $lead->isCallable(),
-                'insurance_type' => $lead->insurance_type?->value,
+                'insurance_type' => $lead->insurance_type,
                 'status' => $lead->status_code,
                 'dvc_status' => $lead->dvc_status?->value,
                 'agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,

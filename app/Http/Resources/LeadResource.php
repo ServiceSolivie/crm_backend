@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Enums\LeadStatusEnum;
 use App\Enums\RoleEnum;
+use App\Support\InsuranceTypeCatalog;
 use Illuminate\Http\Request;
 
 class LeadResource extends BaseResource
@@ -25,8 +26,8 @@ class LeadResource extends BaseResource
             'city' => $this->city,
             'address' => $this->address,
             'birth_date' => $this->birth_date?->toDateString(),
-            'insurance_type' => $this->insurance_type?->value,
-            'insurance_type_label' => $this->insurance_type?->label(),
+            'insurance_type' => $this->insurance_type,
+            'insurance_type_label' => app(InsuranceTypeCatalog::class)->label($this->insurance_type),
             'client_type' => $this->client_type?->value,
             'client_type_label' => $this->client_type?->label(),
             'company_status' => $this->company_status,

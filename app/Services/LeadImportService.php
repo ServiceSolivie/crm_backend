@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadImportStatusEnum;
 use App\Enums\PermissionEnum;
 use App\Exceptions\ApiException;
@@ -11,6 +10,7 @@ use App\Models\LeadImport;
 use App\Models\LeadSource;
 use App\Models\User;
 use App\Repositories\Contracts\LeadImportRepositoryInterface;
+use App\Support\InsuranceTypeCatalog;
 use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
@@ -174,7 +174,7 @@ class LeadImportService
             }
         }
 
-        if (empty($record['insurance_type']) || InsuranceTypeEnum::tryFrom($record['insurance_type']) === null) {
+        if (empty($record['insurance_type']) || ! in_array($record['insurance_type'], app(InsuranceTypeCatalog::class)->selectable(), true)) {
             $errors[] = 'The insurance_type field is invalid or missing.';
         }
 

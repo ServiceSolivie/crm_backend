@@ -2,11 +2,12 @@
 
 namespace App\Services;
 
-use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
+use App\Models\InsuranceType;
 use App\Models\Lead;
 use App\Models\LeadSource;
 use App\Models\User;
+use App\Support\InsuranceTypeCatalog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -75,6 +76,12 @@ class GoogleSheetLeadImporter
             'doublon' => 10,
             'date' => 11,
         ],
+    ];
+
+    /** A sheet value containing one of these words gets that type (after the exact matches) */
+    protected const INSURANCE_TYPE_KEYWORDS = [
+        'flotte' => 'FLOTTE',
+        'camion' => 'CAMION',
     ];
 
     protected const INSURANCE_TYPE_MAP = [
@@ -743,11 +750,21 @@ class GoogleSheetLeadImporter
             return self::INSURANCE_TYPE_MAP[$key];
         }
 
-        if (InsuranceTypeEnum::tryFrom(strtoupper($raw))) {
-            return strtoupper($raw);
+        // Any managed type, by code or by name (« Flotte », « Camion »…)
+        $code = app(InsuranceTypeCatalog::class)->findCode($raw);
+        if ($code) {
+            return $code;
         }
 
-        return 'AUTRE';
+        // Free wording: « Flotte automobile », « Camions », « Assurance camion frigo »…
+        $words = mb_strtolower($raw);
+        foreach (self::INSURANCE_TYPE_KEYWORDS as $keyword => $type) {
+            if (str_contains($words, $keyword)) {
+                return $type;
+            }
+        }
+
+        return InsuranceType::AUTRE;
     }
 
     /**

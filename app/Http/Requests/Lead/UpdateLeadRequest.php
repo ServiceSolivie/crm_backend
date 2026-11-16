@@ -3,7 +3,7 @@
 namespace App\Http\Requests\Lead;
 
 use App\Enums\ClientTypeEnum;
-use App\Enums\InsuranceTypeEnum;
+use App\Support\InsuranceTypeCatalog;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -28,7 +28,7 @@ class UpdateLeadRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:255'],
             'birth_date' => ['nullable', 'date'],
             'lead_source_id' => ['nullable', 'integer', 'exists:lead_sources,id'],
-            'insurance_type' => ['sometimes', Rule::in(InsuranceTypeEnum::values())],
+            'insurance_type' => ['sometimes', Rule::in(app(InsuranceTypeCatalog::class)->selectable())],
             'client_type' => ['nullable', Rule::in(ClientTypeEnum::values())],
             'company_status' => ['nullable', 'string', 'max:255'],
             'company_legal_form' => ['nullable', 'string', 'max:255'],

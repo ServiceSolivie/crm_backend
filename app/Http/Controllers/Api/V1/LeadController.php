@@ -49,7 +49,7 @@ class LeadController extends Controller
             'phone' => $lead->phone,
             'email' => $lead->email,
             'status' => $lead->status_code,
-            'insurance_type' => $lead->insurance_type?->value,
+            'insurance_type' => $lead->insurance_type,
             'assigned_agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,
         ])->values());
     }
@@ -61,7 +61,7 @@ class LeadController extends Controller
     {
         $this->authorize('viewAny', Lead::class);
 
-        return $this->success($this->workspace->counts($request->user()));
+        return $this->success($this->workspace->counts($request->user(), $request->string('section')->toString() ?: null));
     }
 
     /**

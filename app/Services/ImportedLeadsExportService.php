@@ -7,6 +7,7 @@ use App\Models\LeadNote;
 use App\Models\LeadSource;
 use App\Models\LeadStatusHistory;
 use App\Models\User;
+use App\Support\InsuranceTypeCatalog;
 use App\Support\LeadSourceScope;
 use App\Support\LeadStatusCatalog;
 use Carbon\CarbonImmutable;
@@ -44,13 +45,6 @@ class ImportedLeadsExportService
     private const STAGES = ['new' => 'Nouveau', 'contact' => 'Contact', 'follow_up' => 'À relancer', 'quote' => 'Devis', 'won' => 'Validé', 'lost' => 'Perdu'];
 
     private const ORIGIN_LABELS = ['all' => 'Toutes les importations', 'google_sheets' => 'Google Sheets', 'file' => 'Fichier importé'];
-
-    private const INSURANCE_TYPES = [
-        'AUTO' => 'Assurance Auto', 'MOTO' => 'Assurance Moto', 'RC_PRO' => 'Responsabilité Civile Pro',
-        'MUTUELLE_SANTE' => 'Mutuelle Santé', 'EMPRUNTEUR' => 'Assurance Emprunteur', 'CREDIT_CONSOMMATION' => 'Crédit Consommation',
-        'RACHAT_CREDIT' => 'Rachat de Crédit', 'CREDIT_IMMOBILIER' => 'Crédit Immobilier', 'DECENNALE' => 'Décennale',
-        'TAXI_VTC' => 'Taxi / VTC', 'AUTRE' => 'Autre',
-    ];
 
     private const HEADERS = [
         'Référence', 'Reçu le', 'Soumis le', 'Origine', 'Prénom', 'Nom', 'Téléphone', 'E-mail', 'Assurance', 'Source',
@@ -238,7 +232,7 @@ class ImportedLeadsExportService
     public function byInsurance(Builder $query): array
     {
         return $this->stagesBy($query, 'insurance_type')
-            ->map(fn (array $counts, string $code) => ['code' => $code === '' ? null : $code, 'label' => self::INSURANCE_TYPES[$code] ?? ($code ?: 'Non renseignée'), ...$counts])
+            ->map(fn (array $counts, string $code) => ['code' => $code === '' ? null : $code, 'label' => $code === '' ? 'Non renseignée' : app(InsuranceTypeCatalog::class)->label($code), ...$counts])
             ->sortByDesc('received')
             ->values()
             ->all();
@@ -493,7 +487,7 @@ class ImportedLeadsExportService
             $lead->last_name,
             $lead->phone,
             $lead->email,
-            self::INSURANCE_TYPES[$lead->insurance_type?->value] ?? $lead->insurance_type?->value,
+            app(InsuranceTypeCatalog::class)->label($lead->insurance_type),
             $lead->leadSource?->name,
             $this->statuses->label($lead->status_code),
             self::STAGES[$this->statuses->stage($lead->status_code)] ?? null,

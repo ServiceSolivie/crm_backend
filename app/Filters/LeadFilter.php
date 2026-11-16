@@ -4,6 +4,7 @@ namespace App\Filters;
 
 use App\Enums\AppointmentStatusEnum;
 use App\Enums\RoleEnum;
+use App\Support\LeadSection;
 use App\Support\LeadStatusCatalog;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
  *   GET /leads?status=VALIDE               (several: status[]=RAPPEL&status[]=OCCUPE or status=RAPPEL,OCCUPE)
  *   GET /leads?stage=follow_up             (every status of a pipeline stage, see LeadStatusEnum::stage())
  *   GET /leads?insurance_type=AUTO         (accepts several values too)
+ *   GET /leads?section=general             (« Leads » page; or an extra page slug, e.g. section=decennale)
  *   GET /leads?team_id=3
  *   GET /leads?assigned_to=7               (accepts several values too)
  *   GET /leads?unassigned=1                (no agent)
@@ -48,6 +50,14 @@ class LeadFilter extends QueryFilter
     protected function insuranceType(string|array $value): void
     {
         $this->whereIn('insurance_type', $value);
+    }
+
+    /**
+     * Leads page: "general" (« Leads ») or the slug of an extra page.
+     */
+    protected function section(string|array $value): void
+    {
+        LeadSection::apply($this->builder, (string) (is_array($value) ? reset($value) : $value));
     }
 
     protected function teamId(string|array $value): void

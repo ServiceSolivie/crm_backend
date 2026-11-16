@@ -4,10 +4,10 @@ namespace App\Services;
 
 use App\Enums\ClientTypeEnum;
 use App\Enums\DocumentTypeEnum;
-use App\Enums\InsuranceTypeEnum;
 use App\Models\DocumentRequirement;
 use App\Models\DocumentType;
 use App\Repositories\Contracts\DocumentTypeRepositoryInterface;
+use App\Support\InsuranceTypeCatalog;
 
 class DocumentRequirementService
 {
@@ -21,7 +21,7 @@ class DocumentRequirementService
      *
      * @return array<int, array{name: string, label: string}>|null
      */
-    public function getRequiredDocuments(InsuranceTypeEnum $insuranceType, ?ClientTypeEnum $clientType): ?array
+    public function getRequiredDocuments(string $insuranceType, ?ClientTypeEnum $clientType): ?array
     {
         if ($this->requiresClientType($insuranceType) && $clientType === null) {
             return null;
@@ -30,7 +30,7 @@ class DocumentRequirementService
         $query = DocumentRequirement::query()
             ->join('document_types', 'document_types.id', '=', 'document_requirements.document_type_id')
             ->where('document_types.is_active', true)
-            ->where('document_requirements.insurance_type', $insuranceType->value);
+            ->where('document_requirements.insurance_type', $insuranceType);
 
         if ($clientType !== null) {
             $query->where(function ($q) use ($clientType) {
@@ -70,10 +70,10 @@ class DocumentRequirementService
         return ['name' => DocumentTypeEnum::DVC->value, 'label' => $label];
     }
 
-    public function requiresClientType(InsuranceTypeEnum $insuranceType): bool
+    public function requiresClientType(string $insuranceType): bool
     {
         return DocumentRequirement::query()
-            ->where('insurance_type', $insuranceType->value)
+            ->where('insurance_type', $insuranceType)
             ->whereNotNull('client_type')
             ->exists();
     }
@@ -91,12 +91,13 @@ class DocumentRequirementService
 
         $matrix = [];
 
-        foreach (InsuranceTypeEnum::cases() as $insurance) {
+        foreach (app(InsuranceTypeCatalog::class)->all() as $insurance => $type) {
+            $insurance = (string) $insurance;
             $requiresClient = $this->requiresClientType($insurance);
 
             $entry = [
-                'insurance_type' => $insurance->value,
-                'insurance_type_label' => $insurance->label(),
+                'insurance_type' => $insurance,
+                'insurance_type_label' => $type['label'],
                 'requires_client_type' => $requiresClient,
                 'groups' => [],
             ];
@@ -104,12 +105,12 @@ class DocumentRequirementService
             if ($requiresClient) {
                 foreach (ClientTypeEnum::cases() as $clientType) {
                     $entry['groups'][] = $this->buildGroup(
-                        $allRequirements, $allTypes, $insurance->value, $clientType->value, $clientType->label()
+                        $allRequirements, $allTypes, $insurance, $clientType->value, $clientType->label()
                     );
                 }
             } else {
                 $entry['groups'][] = $this->buildGroup(
-                    $allRequirements, $allTypes, $insurance->value, null, null
+                    $allRequirements, $allTypes, $insurance, null, null
                 );
             }
 
@@ -160,7 +161,7 @@ class DocumentRequirementService
     {
         $reqTypeIds = $allRequirements
             ->filter(function ($r) use ($insuranceType, $clientType) {
-                if ($r->insurance_type->value !== $insuranceType) {
+                if ($r->insurance_type !== $insuranceType) {
                     return false;
                 }
 

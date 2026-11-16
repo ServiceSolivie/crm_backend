@@ -6,7 +6,6 @@ use App\Casts\LeadStatusCast;
 use App\Enums\AppointmentStatusEnum;
 use App\Enums\ClientTypeEnum;
 use App\Enums\DvcStatusEnum;
-use App\Enums\InsuranceTypeEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PaymentStatusEnum;
@@ -74,7 +73,6 @@ class Lead extends Model
     {
         return [
             'birth_date' => 'date',
-            'insurance_type' => InsuranceTypeEnum::class,
             'client_type' => ClientTypeEnum::class,
             // The system status, or null for a custom one (see status_code)
             'status' => LeadStatusCast::class,

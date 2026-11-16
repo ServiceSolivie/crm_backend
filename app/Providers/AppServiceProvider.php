@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Enums\PermissionEnum;
 use App\Models\User;
+use App\Support\InsuranceTypeCatalog;
 use App\Support\LeadStatusCatalog;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -17,6 +18,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // One catalog per request: the custom statuses are read once
         $this->app->scoped(LeadStatusCatalog::class);
+        $this->app->scoped(InsuranceTypeCatalog::class);
     }
 
     /**
