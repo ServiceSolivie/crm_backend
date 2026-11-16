@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Enums\LeadStatusEnum;
 use App\Enums\RoleEnum;
 use App\Support\InsuranceTypeCatalog;
+use App\Support\LeadQualification;
 use Illuminate\Http\Request;
 
 class LeadResource extends BaseResource
@@ -39,6 +40,8 @@ class LeadResource extends BaseResource
             'status' => $this->status_code,
             'status_label' => $this->status_label,
             'comment' => $this->comment,
+            // Form answers in a clean shape, to choose who gets the lead: super admin only
+            'qualification' => $this->when($this->seesDoublons($request), fn () => LeadQualification::for($this->resource)),
             // Duplicates are for the super admin only
             'is_doublon' => $this->when($this->seesDoublons($request), fn () => $this->is_doublon),
             'doublon_of' => $this->when($this->seesDoublons($request), fn () => $this->whenLoaded('doublonOf', fn () => $this->doublonOf ? [
