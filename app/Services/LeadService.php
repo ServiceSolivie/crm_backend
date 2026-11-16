@@ -328,6 +328,21 @@ class LeadService extends BaseService
         $fromCode = $lead->status_code;
         $fromStatus = $lead->status;
 
+        // Once gestion holds the lead, only the back office moves it; a lead
+        // sent back « À corriger » can only go back to gestion
+        if ($code !== $fromCode && ! $changedBy->can(PermissionEnum::LEADS_SET_REVIEW_STATUS->value)) {
+            if (in_array($fromStatus, LeadStatusEnum::gestionLockedStatuses(), true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Ce lead est en gestion : seule la gestion peut changer son statut.',
+                ]);
+            }
+            if ($fromStatus === LeadStatusEnum::A_CORRIGER && $status !== LeadStatusEnum::GESTION) {
+                throw ValidationException::withMessages([
+                    'status' => 'Corrigez le dossier puis renvoyez le lead en « Gestion ».',
+                ]);
+            }
+        }
+
         // Gestion and Validé need the client's signed DVC in the dossier
         if (in_array($status, [LeadStatusEnum::GESTION, LeadStatusEnum::VALIDE], true)
             && $status !== $fromStatus
