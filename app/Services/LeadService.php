@@ -287,6 +287,12 @@ class LeadService extends BaseService
         $fromUserId = $lead->assigned_to;
         $toUser = User::findOrFail($toUserId);
 
+        if (! $toUser->is_active) {
+            throw ValidationException::withMessages([
+                'assigned_to' => "{$toUser->name} est désactivé : choisissez un utilisateur actif.",
+            ]);
+        }
+
         if ($assignedBy && $assignedBy->hasRole(RoleEnum::TEAM_LEADER->value) && $toUser->team_id !== $assignedBy->team_id) {
             throw ValidationException::withMessages([
                 'assigned_to' => 'You can only assign leads to agents within your team.',

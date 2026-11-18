@@ -50,6 +50,7 @@ class TeamLeaderController extends Controller
             'id' => $agent->id,
             'name' => $agent->name,
             'email' => $agent->email,
+            'is_active' => (bool) $agent->is_active,
             'roles' => $agent->getRoleNames(),
             'active_leads' => $agent->active_leads_count ?? 0,
             'validated_leads' => $agent->validated_leads_count ?? 0,

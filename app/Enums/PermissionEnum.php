@@ -67,6 +67,7 @@ enum PermissionEnum: string implements HasLabel
     case DASHBOARD_VIEW_GLOBAL = 'dashboard.view_global';
     case DASHBOARD_VIEW_TEAM = 'dashboard.view_team';
     case DASHBOARD_VIEW_PERSONAL = 'dashboard.view_personal';
+    case DASHBOARD_VIEW_TEAM_STATS = 'dashboard.view_team_stats';
 
     // Reports
     case REPORTS_VIEW_ALL = 'reports.view_all';
@@ -176,6 +177,7 @@ enum PermissionEnum: string implements HasLabel
             self::DASHBOARD_VIEW_GLOBAL => 'View global dashboard',
             self::DASHBOARD_VIEW_TEAM => 'View team dashboard',
             self::DASHBOARD_VIEW_PERSONAL => 'View personal dashboard',
+            self::DASHBOARD_VIEW_TEAM_STATS => 'Voir les statistiques de son équipe (superviseur)',
 
             self::REPORTS_VIEW_ALL => 'View all reports',
             self::REPORTS_VIEW_TEAM => 'View team reports',

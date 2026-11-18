@@ -36,6 +36,34 @@ class ApiException extends Exception
         return $this->errors;
     }
 
+    /**
+     * Details for the error log (and its Slack alert) only; never sent back
+     * to the client.
+     *
+     * @var array<string, mixed>
+     */
+    protected array $logContext = [];
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public function withLogContext(array $context): static
+    {
+        $this->logContext = $context;
+
+        return $this;
+    }
+
+    /**
+     * Picked up by Laravel's exception handler and added to the log entry.
+     *
+     * @return array<string, mixed>
+     */
+    public function context(): array
+    {
+        return $this->logContext;
+    }
+
     public function render(): JsonResponse
     {
         return ApiResponse::error($this->getMessage(), $this->statusCode, $this->errors);

@@ -146,61 +146,6 @@ class DashboardRepository implements DashboardRepositoryInterface
         ];
     }
 
-    public function aggregations(?Closure $leadScope, string $level, ?string $from, ?string $to): array
-    {
-        $leadsBySource = $this->leadQuery($leadScope, $from, $to)
-            ->selectRaw('lead_source_id, count(*) as aggregate')
-            ->whereNotNull('lead_source_id')
-            ->groupBy('lead_source_id')
-            ->with('leadSource:id,name')
-            ->get()
-            ->map(fn ($row) => [
-                'id' => $row->lead_source_id,
-                'name' => $row->leadSource?->name ?? 'Unknown',
-                'count' => (int) $row->aggregate,
-            ])
-            ->values();
-
-        $result = [
-            'leads_by_source' => $leadsBySource,
-        ];
-
-        if ($level === 'GLOBAL') {
-            $result['leads_by_team'] = $this->leadQuery($leadScope, $from, $to)
-                ->selectRaw('team_id, count(*) as aggregate')
-                ->whereNotNull('team_id')
-                ->groupBy('team_id')
-                ->with('team:id,name')
-                ->get()
-                ->map(fn ($row) => [
-                    'id' => $row->team_id,
-                    'name' => $row->team?->name ?? 'Unknown',
-                    'count' => (int) $row->aggregate,
-                ])
-                ->values();
-        }
-
-        if (in_array($level, ['GLOBAL', 'TEAM'], true)) {
-            $result['leads_by_agent'] = $this->leadQuery($leadScope, $from, $to)
-                ->selectRaw('assigned_to, count(*) as aggregate, sum(case when status = ? then 1 else 0 end) as validated', [LeadStatusEnum::VALIDE->value])
-                ->whereNotNull('assigned_to')
-                ->groupBy('assigned_to')
-                ->with('assignedAgent:id,name')
-                ->orderByDesc('aggregate')
-                ->get()
-                ->map(fn ($row) => [
-                    'id' => $row->assigned_to,
-                    'name' => $row->assignedAgent?->name ?? 'Unknown',
-                    'count' => (int) $row->aggregate,
-                    'validated_count' => (int) $row->validated,
-                    'conversion_rate' => $row->aggregate > 0 ? round(($row->validated / $row->aggregate) * 100, 2) : 0.0,
-                ])
-                ->values();
-        }
-
-        return $result;
-    }
-
     public function charts(?Closure $leadScope, ?Closure $appointmentScope, int $days): array
     {
         $start = Carbon::today()->subDays($days - 1);

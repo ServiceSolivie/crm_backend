@@ -35,14 +35,6 @@ interface DashboardRepositoryInterface
     public function appointmentStatistics(?Closure $appointmentScope, ?string $from, ?string $to): array;
 
     /**
-     * Grouped aggregations (by source, team, agent) depending on the
-     * caller's visibility level.
-     *
-     * @return array<string, mixed>
-     */
-    public function aggregations(?Closure $leadScope, string $level, ?string $from, ?string $to): array;
-
-    /**
      * Time-series data ready for charting, covering the last $days days.
      *
      * @return array<string, mixed>

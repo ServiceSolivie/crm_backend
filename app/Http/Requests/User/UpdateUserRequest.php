@@ -28,6 +28,8 @@ class UpdateUserRequest extends FormRequest
             'role' => ['sometimes', Rule::in(RoleEnum::values())],
             'lead_source_ids' => ['sometimes', 'nullable', 'array'],
             'lead_source_ids.*' => ['integer', 'distinct', 'exists:lead_sources,id'],
+            // Agents only: also sees the team's numbers on the dashboard
+            'is_supervisor' => ['sometimes', 'boolean'],
         ];
     }
 }
