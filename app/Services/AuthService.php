@@ -39,35 +39,49 @@ class AuthService
      *
      * @throws ApiException
      */
-    public function login(array $credentials, string $ip = ''): array
+    public function login(array $credentials, string $ip = '', string $userAgent = ''): array
     {
         $key = 'login:'.Str::lower(trim($credentials['email'])).'|'.$ip;
-
-        if (RateLimiter::tooManyAttempts($key, self::MAX_LOGIN_ATTEMPTS)) {
-            $seconds = RateLimiter::availableIn($key);
-
-            throw new ApiException(
-                "Trop de tentatives de connexion. Réessayez dans {$seconds} secondes.",
-                429,
-                ['retry_after' => $seconds],
-            );
-        }
 
         /** @var User|null $user */
         $user = $this->users->findBy('email', $credentials['email']);
 
+        // Who tried to log in, for the error log / Slack alert (never the password)
+        $who = fn (string $reason, array $more = []) => [
+            'raison' => $reason,
+            'email_saisi' => $credentials['email'],
+            'compte' => $user ? "{$user->name} (#{$user->id})".($user->is_active ? '' : ' — désactivé') : 'aucun compte avec cet e-mail',
+            'ip' => $ip ?: '—',
+            'navigateur' => $userAgent ?: '—',
+        ] + $more;
+
+        if (RateLimiter::tooManyAttempts($key, self::MAX_LOGIN_ATTEMPTS)) {
+            $seconds = RateLimiter::availableIn($key);
+
+            throw (new ApiException(
+                "Trop de tentatives de connexion. Réessayez dans {$seconds} secondes.",
+                429,
+                ['retry_after' => $seconds],
+            ))->withLogContext($who('connexion bloquée (trop de tentatives)', ['bloque_pour' => "{$seconds} s"]));
+        }
+
         if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             RateLimiter::hit($key, self::LOGIN_LOCK_SECONDS);
+            $attemptsLeft = max(0, self::MAX_LOGIN_ATTEMPTS - RateLimiter::attempts($key));
 
-            throw new ApiException('These credentials do not match our records.', 401, [
-                'attempts_left' => max(0, self::MAX_LOGIN_ATTEMPTS - RateLimiter::attempts($key)),
-            ]);
+            throw (new ApiException('These credentials do not match our records.', 401, [
+                'attempts_left' => $attemptsLeft,
+            ]))->withLogContext($who(
+                $user ? 'mot de passe incorrect' : 'e-mail inconnu',
+                ['essais_restants' => $attemptsLeft],
+            ));
         }
 
         RateLimiter::clear($key);
 
         if (! $user->is_active) {
-            throw new ApiException('This account has been deactivated.', 403);
+            throw (new ApiException('This account has been deactivated.', 403))
+                ->withLogContext($who('compte désactivé'));
         }
 
         // A machine whose PIN was checked recently is remembered: no PIN this time
@@ -116,8 +130,8 @@ class AuthService
         )) {
             throw ValidationException::withMessages([
                 'current_password' => [
-                    'Current password is incorrect'
-                ]
+                    'Current password is incorrect',
+                ],
             ]);
         }
 

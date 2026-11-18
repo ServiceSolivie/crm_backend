@@ -17,7 +17,7 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $result = $this->authService->login($request->validated(), (string) $request->ip());
+        $result = $this->authService->login($request->validated(), (string) $request->ip(), (string) $request->userAgent());
 
         // Password accepted but the machine must prove itself first: no session yet
         if ($result['token'] === null) {

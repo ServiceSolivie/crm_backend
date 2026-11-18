@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\PermissionEnum;
 use Illuminate\Http\Request;
 
 class UserResource extends BaseResource
@@ -19,6 +20,9 @@ class UserResource extends BaseResource
             'is_active' => $this->is_active,
             'roles' => $this->getRoleNames(),
             'permissions' => $this->getAllPermissions()->pluck('name'),
+            // Agent who also sees their team's numbers on the dashboard
+            'is_supervisor' => $this->getDirectPermissions()->contains('name', PermissionEnum::DASHBOARD_VIEW_TEAM_STATS->value),
+            'team_id' => $this->team_id,
             'team' => $this->whenLoaded('team', fn () => $this->team ? [
                 'id' => $this->team->id,
                 'name' => $this->team->name,

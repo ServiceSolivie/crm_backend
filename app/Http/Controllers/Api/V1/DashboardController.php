@@ -35,18 +35,6 @@ class DashboardController extends Controller
         return $this->success($this->dashboardService->statistics($user, $from, $to, $teamId, $agentId));
     }
 
-    public function aggregations(DashboardFilterRequest $request): JsonResponse
-    {
-        $user = $request->user();
-
-        abort_unless($this->dashboardService->canView($user), 403, 'You do not have permission to view the dashboard.');
-
-        [$from, $to] = $this->resolveDates($request);
-        [$teamId, $agentId] = $this->resolveFilters($request);
-
-        return $this->success($this->dashboardService->aggregations($user, $from, $to, $teamId, $agentId));
-    }
-
     public function charts(DashboardFilterRequest $request): JsonResponse
     {
         $user = $request->user();

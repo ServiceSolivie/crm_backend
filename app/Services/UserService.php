@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\PermissionEnum;
 use App\Enums\RoleEnum;
 use App\Exceptions\ApiException;
 use App\Filters\UserFilter;
@@ -23,7 +24,8 @@ class UserService
     {
         $role = $attributes['role'];
         $sourceIds = $attributes['lead_source_ids'] ?? [];
-        unset($attributes['role'], $attributes['lead_source_ids']);
+        $supervisor = (bool) ($attributes['is_supervisor'] ?? false);
+        unset($attributes['role'], $attributes['lead_source_ids'], $attributes['is_supervisor']);
 
         $attributes['password'] = Hash::make($attributes['password']);
         $attributes['is_active'] = $attributes['is_active'] ?? true;
@@ -31,6 +33,7 @@ class UserService
         $user = $this->users->create($attributes);
         $user->syncRoles([$role]);
         $this->syncLeadSources($user, $sourceIds);
+        $this->syncSupervisor($user, $supervisor);
 
         return $user->load(['roles', 'leadSources']);
     }
@@ -50,7 +53,16 @@ class UserService
         $sourceIds = $attributes['lead_source_ids'] ?? [];
         unset($attributes['lead_source_ids']);
 
+        $supervisorSent = array_key_exists('is_supervisor', $attributes);
+        $supervisor = (bool) ($attributes['is_supervisor'] ?? false);
+        unset($attributes['is_supervisor']);
+
         $user->update($attributes);
+
+        // Only an agent can be a supervisor: dropped when the role changes
+        if ($supervisorSent || ! $user->hasRole(RoleEnum::AGENT->value)) {
+            $this->syncSupervisor($user, $supervisor);
+        }
 
         // Clear them when the role is no longer marketing, even if not sent
         if ($sourcesSent || ! $user->hasRole(RoleEnum::MARKETING->value)) {
@@ -72,6 +84,9 @@ class UserService
         if ($role !== RoleEnum::MARKETING->value) {
             $this->syncLeadSources($user, []);
         }
+        if ($role !== RoleEnum::AGENT->value) {
+            $this->syncSupervisor($user, false);
+        }
 
         return $user->load('roles');
     }
@@ -84,6 +99,21 @@ class UserService
     protected function syncLeadSources(User $user, array $sourceIds): void
     {
         $user->leadSources()->sync($user->hasRole(RoleEnum::MARKETING->value) ? $sourceIds : []);
+    }
+
+    /**
+     * A supervisor is an agent who also sees their team's numbers on the
+     * dashboard: the permission is given to the user directly, not the role.
+     */
+    protected function syncSupervisor(User $user, bool $supervisor): void
+    {
+        $permission = PermissionEnum::DASHBOARD_VIEW_TEAM_STATS->value;
+
+        if ($supervisor && $user->hasRole(RoleEnum::AGENT->value)) {
+            $user->givePermissionTo($permission);
+        } elseif ($user->getDirectPermissions()->contains('name', $permission)) {
+            $user->revokePermissionTo($permission);
+        }
     }
 
     public function resetPassword(User $target, string $newPassword): User

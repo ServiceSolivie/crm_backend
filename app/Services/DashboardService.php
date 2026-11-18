@@ -52,16 +52,6 @@ class DashboardService
     /**
      * @return array<string, mixed>
      */
-    public function aggregations(User $user, ?string $from = null, ?string $to = null, ?int $teamId = null, ?int $agentId = null): array
-    {
-        [$leadScope, , $level] = $this->scopes($user, $teamId, $agentId);
-
-        return $this->dashboard->aggregations($leadScope, $level, $from, $to);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
     public function charts(User $user, int $days = 14, ?int $teamId = null, ?int $agentId = null): array
     {
         [$leadScope, $appointmentScope] = $this->scopes($user, $teamId, $agentId);
@@ -217,6 +207,25 @@ class DashboardService
                     $agentId,
                 ),
                 $this->withAppointmentFilters($appointmentScope, $teamId, $agentId),
+                'TEAM',
+            ];
+        }
+
+        // Supervisor agent asking for their own team: the team's leads and
+        // appointments, counted only (their lead lists stay personal)
+        if ($teamId && $user->team_id && $teamId === (int) $user->team_id
+            && $user->can(PermissionEnum::DASHBOARD_VIEW_TEAM_STATS->value)) {
+            return [
+                $this->withLeadFilters(
+                    fn (Builder $query) => $query->where('team_id', $user->team_id),
+                    $teamId,
+                    $agentId,
+                ),
+                $this->withAppointmentFilters(
+                    fn (Builder $query) => $query->whereHas('agent', fn (Builder $a) => $a->where('team_id', $user->team_id)),
+                    $teamId,
+                    $agentId,
+                ),
                 'TEAM',
             ];
         }
