@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\ReportService;
 use Illuminate\Http\Request;
 
 class AgentReportResource extends BaseResource
@@ -48,9 +49,10 @@ class AgentReportResource extends BaseResource
                 // How many calls it takes to validate one lead (null: no validated lead yet).
                 'per_validated_lead' => $validatedLeads > 0 ? round($totalPhoneCalls / $validatedLeads, 1) : null,
             ],
-            'revenue' => [
+            // Supervisors see their team's figures without the money
+            'revenue' => $this->when(! app(ReportService::class)->hidesRevenue($request->user()), fn () => [
                 'received' => round((float) $this->revenue_received, 2),
-            ],
+            ]),
         ];
     }
 }

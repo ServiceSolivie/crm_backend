@@ -13,6 +13,7 @@ use App\Http\Resources\AgentReportResource;
 use App\Http\Resources\AppointmentResource;
 use App\Http\Resources\ConversionReportResource;
 use App\Http\Resources\LeadResource;
+use App\Http\Resources\ReportLeadResource;
 use App\Http\Resources\RevenueReportResource;
 use App\Http\Resources\TeamReportResource;
 use App\Services\ReportService;
@@ -33,7 +34,9 @@ class ReportController extends Controller
 
         $leads = $this->reportService->leadReport($user, $filters, $perPage);
 
-        return $this->success(LeadResource::collection($leads));
+        return $this->success($this->reportService->hidesRevenue($user)
+            ? ReportLeadResource::collection($leads)
+            : LeadResource::collection($leads));
     }
 
     public function leadsSummary(Request $request, LeadFilter $filters): JsonResponse
