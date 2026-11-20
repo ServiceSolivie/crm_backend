@@ -98,8 +98,9 @@ class DashboardRepository implements DashboardRepositoryInterface
      */
     protected function periodFigures(?Closure $leadScope, ?Closure $appointmentScope, ?string $from, ?string $to): array
     {
+        // Conversion: leads validated in the period out of the leads that arrived in it
         $totalLeads = $this->leadQuery($leadScope, $from, $to)->count();
-        $validatedLeads = $this->leadQuery($leadScope, $from, $to)
+        $validatedLeads = $this->leadByStatusDateQuery($leadScope, $from, $to)
             ->where('status', LeadStatusEnum::VALIDE->value)
             ->count();
 
@@ -118,7 +119,8 @@ class DashboardRepository implements DashboardRepositoryInterface
 
     public function leadStatistics(?Closure $leadScope, ?string $from, ?string $to): array
     {
-        $byStatus = $this->leadQuery($leadScope, $from, $to)
+        // Pipeline: by when each lead reached its status, not when it arrived
+        $byStatus = $this->leadByStatusDateQuery($leadScope, $from, $to)
             ->selectRaw('status, count(*) as aggregate')
             ->groupBy('status')
             ->pluck('aggregate', 'status');
@@ -274,6 +276,37 @@ class DashboardRepository implements DashboardRepositoryInterface
         }
 
         $this->applyDateRange($query, 'validated_at', $from, $to);
+
+        return $query;
+    }
+
+    /**
+     * When the lead got its current status: the latest move into it in the
+     * status history, else its arrival (statuses set by the sheet import or
+     * never changed have no history row).
+     */
+    protected const STATUS_DATE_SQL = '(COALESCE((SELECT MAX(h.created_at) FROM lead_status_histories h'
+        .' WHERE h.lead_id = leads.id AND h.to_status = leads.status), leads.created_at))';
+
+    /**
+     * Leads by the date they reached their current status (pipeline, conversion):
+     * a lead that arrived in October and went to Gestion in November counts in November.
+     */
+    protected function leadByStatusDateQuery(?Closure $scope, ?string $from, ?string $to): Builder
+    {
+        $query = Lead::query();
+
+        if ($scope) {
+            $scope($query);
+        }
+
+        if ($from) {
+            $query->whereRaw(self::STATUS_DATE_SQL.' >= ?', [Carbon::parse($from)->startOfDay()]);
+        }
+
+        if ($to) {
+            $query->whereRaw(self::STATUS_DATE_SQL.' <= ?', [Carbon::parse($to)->endOfDay()]);
+        }
 
         return $query;
     }

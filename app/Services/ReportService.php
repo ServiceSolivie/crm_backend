@@ -28,7 +28,28 @@ class ReportService
     public function canView(User $user): bool
     {
         return $user->can(PermissionEnum::REPORTS_VIEW_ALL->value)
-            || $user->can(PermissionEnum::REPORTS_VIEW_TEAM->value);
+            || $this->seesTeamReports($user);
+    }
+
+    /**
+     * Reports limited to the user's own team: team-report permission, or a
+     * supervisor (agent with the team-stats permission).
+     */
+    protected function seesTeamReports(User $user): bool
+    {
+        return $user->can(PermissionEnum::REPORTS_VIEW_TEAM->value)
+            || $user->can(PermissionEnum::DASHBOARD_VIEW_TEAM_STATS->value);
+    }
+
+    /**
+     * A supervisor sees the reports of his team through the team-stats
+     * permission only: no money figures (revenue stays personal).
+     */
+    public function hidesRevenue(User $user): bool
+    {
+        return ! $user->can(PermissionEnum::REPORTS_VIEW_ALL->value)
+            && ! $user->can(PermissionEnum::REPORTS_VIEW_TEAM->value)
+            && $user->can(PermissionEnum::DASHBOARD_VIEW_TEAM_STATS->value);
     }
 
     public function leadReport(User $user, LeadFilter $filters, int $perPage = 15): LengthAwarePaginator
@@ -138,7 +159,7 @@ class ReportService
      * the user's reporting permissions:
      *
      *   - REPORTS_VIEW_ALL: no restriction
-     *   - REPORTS_VIEW_TEAM: restrict to the user's own team
+     *   - REPORTS_VIEW_TEAM or supervisor: restrict to the user's own team
      *   - neither: restrict to nothing
      */
     protected function scope(User $user, string $teamColumn): Closure
@@ -148,7 +169,7 @@ class ReportService
                 return;
             }
 
-            if ($user->can(PermissionEnum::REPORTS_VIEW_TEAM->value)) {
+            if ($this->seesTeamReports($user)) {
                 $query->where($teamColumn, $user->team_id);
 
                 return;
@@ -196,7 +217,7 @@ class ReportService
                 return;
             }
 
-            if ($user->can(PermissionEnum::REPORTS_VIEW_TEAM->value)) {
+            if ($this->seesTeamReports($user)) {
                 $query->whereHas('agent', fn (Builder $q) => $q->where('team_id', $user->team_id));
 
                 return;

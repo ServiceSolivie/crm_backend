@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\ReportService;
 use Illuminate\Http\Request;
 
 class TeamReportResource extends BaseResource
@@ -38,9 +39,10 @@ class TeamReportResource extends BaseResource
             'calls' => [
                 'total' => (int) $this->total_calls,
             ],
-            'revenue' => [
+            // Supervisors see their team's figures without the money
+            'revenue' => $this->when(! app(ReportService::class)->hidesRevenue($request->user()), fn () => [
                 'received' => round((float) $this->revenue_received, 2),
-            ],
+            ]),
         ];
     }
 }
