@@ -6,10 +6,11 @@ use App\Enums\CallStatusEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PermissionEnum;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\UserResource;
 use App\Models\Appointment;
 use App\Models\Lead;
 use App\Models\User;
+use App\Services\GestionService;
+use App\Support\LeadStatusCatalog;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,12 +29,16 @@ class TeamLeaderController extends Controller
 
         $teamId = $user->team_id;
 
+        // Active members only; lead counts follow the pipeline stages, so a
+        // status added in the CRM is counted where it belongs
+        $lost = app(LeadStatusCatalog::class)->codesForStage('lost');
         $agents = User::where('team_id', $teamId)
+            ->where('is_active', true)
             ->where('id', '!=', $user->id)
             ->with('roles')
             ->withCount([
                 'assignedLeads as active_leads_count' => fn ($q) => $q->where('team_id', $teamId)
-                    ->whereNotIn('status', [LeadStatusEnum::PAS_INTERESSE->value, LeadStatusEnum::PERDU->value, LeadStatusEnum::MAUVAIS_NUMERO->value, LeadStatusEnum::LEAD_INVALIDE->value]),
+                    ->whereNotIn('status', $lost),
                 'assignedLeads as validated_leads_count' => fn ($q) => $q->where('team_id', $teamId)
                     ->where('status', LeadStatusEnum::VALIDE->value),
                 'assignedLeads as total_leads_count' => fn ($q) => $q->where('team_id', $teamId),
@@ -87,13 +92,7 @@ class TeamLeaderController extends Controller
 
         $leads = Lead::where('team_id', $user->team_id)
             ->whereNotNull('assigned_to')
-            ->whereNotIn('status', [
-                LeadStatusEnum::VALIDE->value,
-                LeadStatusEnum::PERDU->value,
-                LeadStatusEnum::PAS_INTERESSE->value,
-                LeadStatusEnum::MAUVAIS_NUMERO->value,
-                LeadStatusEnum::LEAD_INVALIDE->value,
-            ])
+            ->whereNotIn('status', [LeadStatusEnum::VALIDE->value, ...app(LeadStatusCatalog::class)->codesForStage('lost')])
             ->whereDoesntHave('phoneCalls', fn ($q) => $realCall($q)->where('started_at', '>=', $threshold))
             ->with('assignedAgent:id,name')
             ->withMax(['phoneCalls as last_call_at' => $realCall], 'started_at')
@@ -148,12 +147,12 @@ class TeamLeaderController extends Controller
         $now = Carbon::now();
 
         $leads = Lead::where('team_id', $teamId)
-            ->whereIn('status', [
-                LeadStatusEnum::PAS_DE_REPONSE->value,
-                LeadStatusEnum::OCCUPE->value,
-                LeadStatusEnum::RAPPEL->value,
-                LeadStatusEnum::EN_ATTENTE_CLIENT->value,
-            ])
+            // Contact and follow-up stages (custom statuses included), without
+            // the gestion steps, which are not the agent's to chase
+            ->whereIn('status', array_values(array_diff(
+                [...app(LeadStatusCatalog::class)->codesForStage('contact'), ...app(LeadStatusCatalog::class)->codesForStage('follow_up')],
+                GestionService::activeStatuses(),
+            )))
             ->with(['assignedAgent:id,name', 'team:id,name'])
             ->withMax(['phoneCalls as last_call_at' => fn ($q) => $q->where('status', '!=', CallStatusEnum::INITIATED->value)], 'started_at')
             ->get();
@@ -174,22 +173,22 @@ class TeamLeaderController extends Controller
 
             $reason = null;
             if ($lead->status === LeadStatusEnum::PAS_DE_REPONSE && $hoursIdle > 24) {
-                $reason = 'Pas de réponse depuis ' . round($hoursIdle) . 'h';
+                $reason = 'Pas de réponse depuis '.round($hoursIdle).'h';
             } elseif ($lead->status === LeadStatusEnum::RAPPEL) {
                 $hasAppointment = Appointment::where('lead_id', $lead->id)
                     ->where('status', 'PLANIFIE')
                     ->exists();
                 if (! $hasAppointment && $hoursIdle > 48) {
-                    $reason = 'Rappel en retard de ' . round($hoursIdle - 48) . 'h';
+                    $reason = 'Rappel en retard de '.round($hoursIdle - 48).'h';
                 }
             } elseif ($lead->status === LeadStatusEnum::EN_ATTENTE_CLIENT && $hoursIdle > 48) {
-                $reason = 'En attente depuis ' . round($hoursIdle) . 'h';
+                $reason = 'En attente depuis '.round($hoursIdle).'h';
             }
 
             return [
                 'id' => $lead->id,
                 'reference' => $lead->reference,
-                'name' => trim(($lead->first_name ?? '') . ' ' . ($lead->last_name ?? '')),
+                'name' => trim(($lead->first_name ?? '').' '.($lead->last_name ?? '')),
                 'status' => $lead->status_code,
                 'assigned_agent' => $lead->assignedAgent ? [
                     'id' => $lead->assignedAgent->id,

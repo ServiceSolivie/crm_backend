@@ -162,6 +162,17 @@ class LeadFilter extends QueryFilter
      * ?sort_by=next_action_at — leads with the earliest open appointment
      * first; leads with nothing planned go last whatever the direction.
      */
+    /**
+     * Latest dispatched first: when the lead was last assigned, or created
+     * for a lead never assigned.
+     */
+    protected function sortByAssignedAt(string $direction): void
+    {
+        $this->builder
+            ->orderByRaw('COALESCE(leads.assigned_at, leads.created_at) '.($direction === 'desc' ? 'desc' : 'asc'))
+            ->orderBy('leads.id', $direction === 'desc' ? 'desc' : 'asc');
+    }
+
     protected function sortByNextActionAt(string $direction): void
     {
         $next = '(select min(a.scheduled_at) from appointments a where a.lead_id = leads.id and a.deleted_at is null and a.status in (?, ?))';

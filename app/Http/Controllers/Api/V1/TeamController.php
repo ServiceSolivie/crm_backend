@@ -45,7 +45,7 @@ class TeamController extends Controller
     {
         $this->authorize('view', $team);
 
-        $team->load(['manager', 'leader'])->loadCount('members');
+        $team->load(['manager', 'leader'])->loadCount(['members' => fn ($query) => $query->where('is_active', true)]);
 
         return $this->success(new TeamResource($team));
     }
@@ -56,7 +56,7 @@ class TeamController extends Controller
 
         $team = $this->teamService->updateTeam($team, $request->validated());
 
-        $team->load(['manager', 'leader'])->loadCount('members');
+        $team->load(['manager', 'leader'])->loadCount(['members' => fn ($query) => $query->where('is_active', true)]);
 
         return $this->success(new TeamResource($team), 'Team updated successfully');
     }

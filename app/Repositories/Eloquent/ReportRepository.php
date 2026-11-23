@@ -30,7 +30,7 @@ class ReportRepository implements ReportRepositoryInterface
     {
         $query = Team::query()
             ->with('manager')
-            ->withCount('members')
+            ->withCount(['members' => fn (Builder $query) => $query->where('is_active', true)])
             ->withCount(['leads as total_leads' => function (Builder $query) use ($from, $to, $sourceIds) {
                 LeadSourceScope::leads($query, $sourceIds);
                 $this->applyDateRange($query, 'created_at', $from, $to);
@@ -74,6 +74,7 @@ class ReportRepository implements ReportRepositoryInterface
     {
         $query = User::query()
             ->whereHas('roles', fn (Builder $query) => $query->where('name', RoleEnum::AGENT->value))
+            ->where('is_active', true)
             ->with('team')
             ->withCount(['assignedLeads as total_leads' => function (Builder $query) use ($from, $to, $sourceIds) {
                 LeadSourceScope::leads($query, $sourceIds);
@@ -134,10 +135,11 @@ class ReportRepository implements ReportRepositoryInterface
                 ->whereNotNull('leads.team_id')
                 ->groupBy('leads.team_id', 'teams.name'),
 
+            // Deactivated agents share one line (dimension 0), so totals still add up
             'agent' => $query->join('users', 'users.id', '=', 'leads.assigned_to')
-                ->selectRaw('leads.assigned_to as dimension_id, users.name as dimension_name')
+                ->selectRaw("CASE WHEN users.is_active = 1 THEN leads.assigned_to ELSE 0 END as dimension_id, CASE WHEN users.is_active = 1 THEN users.name ELSE 'Agents désactivés' END as dimension_name")
                 ->whereNotNull('leads.assigned_to')
-                ->groupBy('leads.assigned_to', 'users.name'),
+                ->groupByRaw("CASE WHEN users.is_active = 1 THEN leads.assigned_to ELSE 0 END, CASE WHEN users.is_active = 1 THEN users.name ELSE 'Agents désactivés' END"),
 
             'insurance_type' => $query->selectRaw('leads.insurance_type as dimension_id')
                 ->whereNotNull('leads.insurance_type')

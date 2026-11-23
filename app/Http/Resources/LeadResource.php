@@ -93,6 +93,8 @@ class LeadResource extends BaseResource
                 'id' => $this->creator->id,
                 'name' => $this->creator->name,
             ]),
+            // Last dispatched (assigned / reassigned): the leads table sorts on it
+            'assigned_at' => $this->formatDate($this->assigned_at),
             'created_at' => $this->formatDate($this->created_at),
             'updated_at' => $this->formatDate($this->updated_at),
         ];

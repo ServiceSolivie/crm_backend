@@ -26,7 +26,7 @@ class TeamRepository extends BaseRepository implements TeamRepositoryInterface
     {
         $query = $this->newQuery()
             ->with(['manager', 'leader'])
-            ->withCount('members');
+            ->withCount(['members' => fn ($query) => $query->where('is_active', true)]);
 
         if ($scope) {
             $scope($query);
@@ -39,6 +39,7 @@ class TeamRepository extends BaseRepository implements TeamRepositoryInterface
     {
         return User::query()
             ->where('team_id', $teamId)
+            ->where('is_active', true)
             ->paginate($perPage);
     }
 
@@ -68,7 +69,8 @@ class TeamRepository extends BaseRepository implements TeamRepositoryInterface
         $validatedLeads = (int) ($leadsByStatus[LeadStatusEnum::VALIDE->value] ?? 0);
 
         return [
-            'members_count' => $this->membersCount($teamId),
+            // Shown on screen: active members only
+            'members_count' => User::query()->where('team_id', $teamId)->where('is_active', true)->count(),
             'leads' => [
                 'total' => $totalLeads,
                 'by_status' => $this->fillStatusCounts(app(LeadStatusCatalog::class)->codes(), $leadsByStatus),
