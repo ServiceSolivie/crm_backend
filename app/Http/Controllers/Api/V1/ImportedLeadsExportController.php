@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * Imported leads of a week / month / range with their current status:
  * GET /lead-exports/imported/summary for the screen,
  * GET /lead-exports/imported/download for the Excel file.
- * Super admin only (checked by the request).
+ * Super admin, or a supervisor for his team (checked by the request).
  */
 class ImportedLeadsExportController extends Controller
 {
@@ -23,7 +23,7 @@ class ImportedLeadsExportController extends Controller
     public function summary(ImportedLeadsExportRequest $request): JsonResponse
     {
         $range = $this->range($request);
-        $query = $this->exports->query($range, $request->origin(), $request->user()->allowedSourceIds());
+        $query = $this->exports->query($range, $request->origin(), $request->user()->allowedSourceIds(), $request->teamId());
 
         return $this->success([
             'period' => $range['period'],
@@ -32,6 +32,8 @@ class ImportedLeadsExportController extends Controller
             'label' => $range['label'],
             'file_name' => $range['file_name'],
             'origin' => $request->origin(),
+            // Supervisor: the team the figures are limited to
+            'team' => $request->teamId() !== null ? $request->user()->team?->name : null,
             ...$this->exports->summary($query),
         ]);
     }
@@ -39,7 +41,7 @@ class ImportedLeadsExportController extends Controller
     public function download(ImportedLeadsExportRequest $request): BinaryFileResponse
     {
         $range = $this->range($request);
-        $query = $this->exports->query($range, $request->origin(), $request->user()->allowedSourceIds());
+        $query = $this->exports->query($range, $request->origin(), $request->user()->allowedSourceIds(), $request->teamId());
         $path = tempnam(sys_get_temp_dir(), 'leads-export-');
 
         $written = $this->exports->write($query, $range, $request->origin(), $this->exports->summary($query), $request->user(), $path);

@@ -93,8 +93,9 @@ class ImportedLeadsExportService
      */
     /**
      * @param  list<int>|null  $sourceIds  Sources the user is limited to (marketing), null = all
+     * @param  int|null  $teamId  Team the user is limited to (supervisor), null = all
      */
-    public function query(array $range, string $origin, ?array $sourceIds = null): Builder
+    public function query(array $range, string $origin, ?array $sourceIds = null, ?int $teamId = null): Builder
     {
         $query = Lead::query()
             ->where(fn (Builder $q) => match ($origin) {
@@ -105,7 +106,8 @@ class ImportedLeadsExportService
             ->whereBetween('leads.created_at', [
                 $range['from']->utc()->format('Y-m-d H:i:s'),
                 $range['to']->utc()->format('Y-m-d H:i:s'),
-            ]);
+            ])
+            ->when($teamId !== null, fn (Builder $q) => $q->where('leads.team_id', $teamId));
 
         return LeadSourceScope::leads($query, $sourceIds, 'leads.lead_source_id');
     }
