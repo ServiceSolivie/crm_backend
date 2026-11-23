@@ -23,6 +23,7 @@ class AgentReportResource extends BaseResource
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
+            'is_active' => (bool) $this->is_active,
             'team' => $this->whenLoaded('team', fn () => $this->team ? [
                 'id' => $this->team->id,
                 'name' => $this->team->name,

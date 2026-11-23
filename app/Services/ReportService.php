@@ -170,14 +170,14 @@ class ReportService
     }
 
     /**
-     * The agents whose revenue the user may see, active ones first.
+     * The active agents whose revenue the user may see (disabled ones are hidden).
      *
      * @return Collection<int, User>
      */
     protected function revenueAgents(User $user): Collection
     {
         $query = User::query()->role(RoleEnum::AGENT->value)->with('team:id,name')
-            ->orderByDesc('is_active')->orderBy('name');
+            ->where('is_active', true)->orderBy('name');
 
         if ($user->can(PermissionEnum::REVENUE_VIEW_ALL->value)) {
             return $query->get();
