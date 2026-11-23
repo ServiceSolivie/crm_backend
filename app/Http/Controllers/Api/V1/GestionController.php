@@ -19,7 +19,7 @@ class GestionController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user->can(PermissionEnum::GESTION_REVIEW->value), 403, 'You do not have permission to view the gestion dashboard.');
+        abort_unless($this->gestionService->canViewDashboard($user), 403, 'You do not have permission to view the gestion dashboard.');
 
         $stats = $this->gestionService->dashboardStats($user);
         $stats['stuck_leads'] = LeadResource::collection($stats['stuck_leads']);
