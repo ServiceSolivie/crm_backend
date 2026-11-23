@@ -30,9 +30,16 @@ class UserFilter extends QueryFilter
 
     protected function search(string $value): void
     {
-        $this->builder->where(function ($query) use ($value) {
+        // "25" or "#25": the user ID (as shown in Slack errors)
+        $id = ltrim(trim($value), '#');
+
+        $this->builder->where(function ($query) use ($value, $id) {
             $query->where('name', 'like', "%{$value}%")
                 ->orWhere('email', 'like', "%{$value}%");
+
+            if (ctype_digit($id)) {
+                $query->orWhere('id', (int) $id);
+            }
         });
     }
 

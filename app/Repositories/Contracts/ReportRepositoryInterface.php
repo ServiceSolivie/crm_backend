@@ -55,8 +55,8 @@ interface ReportRepositoryInterface
     public function appointmentSummary(?Closure $scope, AppointmentFilter $filters): array;
 
     /**
-     * Money brought in by one agent over a period, month by month, with his
-     * best clients, the clients still owing money and (optionally) his rank
+     * Money brought in by one agent over a period, month by month, with the
+     * clients who paid him, the clients still owing money and (optionally) his rank
      * among other agents.
      *
      * @param  int[]|null  $sourceIds  lead sources the viewer may see (null: all)

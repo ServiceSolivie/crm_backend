@@ -276,7 +276,8 @@ class ReportRepository implements ReportRepositoryInterface
      *  - expected, remaining, collection rate: the leads he got validated in
      *    the period, with every payment they have received so far;
      *  - months: the same month by month, plus leads received and conversion;
-     *  - top clients: most cash in over the period;
+     *  - clients: every client who paid him in the period, one line per
+     *    client and month of payment (so month totals match the chart);
      *  - to follow up: his validated leads (any date) still owing money.
      */
     public function agentRevenue(User $agent, CarbonImmutable $from, CarbonImmutable $to, ?array $sourceIds = null, ?array $rankAmong = null): array
@@ -341,7 +342,7 @@ class ReportRepository implements ReportRepositoryInterface
                 'average_basket' => $validated->count() > 0 ? round($expected / $validated->count(), 2) : null,
             ],
             'months' => $months,
-            'top_clients' => $this->topClients($cash),
+            'clients' => $this->paidClients($cash),
             'to_follow_up' => $this->clientsOwing($agentLeads()),
             'ranking' => $rankAmong === null ? null : $this->revenueRanking($rankAmong, $start, $end, $sourceIds),
         ];
@@ -358,16 +359,43 @@ class ReportRepository implements ReportRepositoryInterface
     }
 
     /**
-     * The five leads that brought in the most cash among the given payments.
+     * The clients behind the given payments: one line per client and month,
+     * latest payment first.
      */
-    protected function topClients(Collection $cash): array
+    protected function paidClients(Collection $cash): array
     {
-        $totals = $cash->groupBy('lead_id')->map(fn ($payments) => (float) $payments->sum('amount'))->sortDesc()->take(5);
-        $leads = Lead::query()->whereIn('id', $totals->keys())->get(['id', 'reference', 'first_name', 'last_name', 'company_name', 'insurance_type'])->keyBy('id');
+        if ($cash->isEmpty()) {
+            return [];
+        }
 
-        return $totals->map(fn (float $amount, int $leadId) => $leads->has($leadId)
-            ? $this->clientRow($leads[$leadId]) + ['received' => round($amount, 2)]
-            : null)->filter()->values()->all();
+        $leads = Lead::query()->whereIn('id', $cash->pluck('lead_id')->unique())
+            ->withSum(['payments as received_sum' => fn (Builder $query) => $query->received()], 'amount')
+            ->get(['id', 'reference', 'first_name', 'last_name', 'company_name', 'insurance_type', 'expected_revenue', 'payment_status'])
+            ->keyBy('id');
+
+        return $cash
+            ->groupBy(fn (Payment $payment) => $payment->lead_id.'|'.CarbonImmutable::parse($payment->payment_date)->format('Y-m'))
+            ->map(function (Collection $payments) use ($leads) {
+                $lead = $leads->get($payments->first()->lead_id);
+                if ($lead === null) {
+                    return null;
+                }
+                $last = $payments->map(fn (Payment $payment) => CarbonImmutable::parse($payment->payment_date)->toDateString())->max();
+
+                return $this->clientRow($lead) + [
+                    'month' => substr($last, 0, 7),
+                    'last_payment_date' => $last,
+                    'received' => round((float) $payments->sum('amount'), 2),
+                    'expected' => round((float) $lead->expected_revenue, 2),
+                    'remaining' => round(max(0, (float) $lead->expected_revenue - (float) $lead->received_sum), 2),
+                    'payment_status' => $lead->payment_status?->value,
+                    'payment_status_label' => $lead->payment_status?->label(),
+                ];
+            })
+            ->filter()
+            ->sortBy([['last_payment_date', 'desc'], ['name', 'asc']])
+            ->values()
+            ->all();
     }
 
     /**
@@ -381,16 +409,17 @@ class ReportRepository implements ReportRepositoryInterface
             ->where(fn (Builder $query) => $query->whereNull('leads.payment_status')
                 ->orWhereNotIn('leads.payment_status', [PaymentStatusEnum::PAYE->value, PaymentStatusEnum::REMBOURSE->value]))
             ->withSum(['payments as received_sum' => fn (Builder $query) => $query->received()], 'amount')
-            ->get(['leads.id', 'leads.reference', 'leads.first_name', 'leads.last_name', 'leads.company_name', 'leads.insurance_type', 'leads.expected_revenue', 'leads.payment_status'])
+            ->get(['leads.id', 'leads.reference', 'leads.first_name', 'leads.last_name', 'leads.company_name', 'leads.insurance_type', 'leads.expected_revenue', 'leads.payment_status', 'leads.validated_at'])
             ->map(fn (Lead $lead) => $this->clientRow($lead) + [
                 'payment_status' => $lead->payment_status?->value,
                 'payment_status_label' => $lead->payment_status?->label(),
+                'validated_at' => $lead->validated_at?->toDateString(),
                 'expected' => round((float) $lead->expected_revenue, 2),
+                'received' => round((float) $lead->received_sum, 2),
                 'remaining' => round(max(0, (float) $lead->expected_revenue - (float) $lead->received_sum), 2),
             ])
             ->where('remaining', '>', 0)
             ->sortByDesc('remaining')
-            ->take(8)
             ->values()
             ->all();
     }
