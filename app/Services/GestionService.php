@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\LeadStatusEnum;
+use App\Enums\PermissionEnum;
 use App\Enums\RoleEnum;
 use App\Mail\LeadAssignedToGestionMail;
 use App\Mail\LeadNeedsCorrectionMail;
@@ -11,6 +12,7 @@ use App\Models\LeadStatusHistory;
 use App\Models\User;
 use App\Notifications\LeadNeedsCorrectionNotification;
 use App\Notifications\LeadReceivedNotification;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
@@ -108,7 +110,8 @@ class GestionService
      */
     public function dashboardStats(User $user): array
     {
-        $baseQuery = fn () => Lead::where('gestion_assigned_to', $user->id);
+        $supervisor = $this->isSupervisorView($user);
+        $baseQuery = fn () => $this->scopedLeads($user, $supervisor);
 
         $stuckLeads = $baseQuery()
             ->whereIn('status', [LeadStatusEnum::CALL2_KO->value, LeadStatusEnum::PDG_KO->value])
@@ -122,12 +125,17 @@ class GestionService
             'waiting_on_agent_count' => $baseQuery()->where('status', LeadStatusEnum::A_CORRIGER->value)->count(),
             // Leads this user validated in the last 7 days, each counted once
             // (Validé is the final step; PDG OK comes before it).
+            // (a supervisor: the leads of his team validated by anyone)
             'validated_this_week' => LeadStatusHistory::where('to_status', LeadStatusEnum::VALIDE->value)
-                ->where('changed_by', $user->id)
+                ->when(
+                    $supervisor,
+                    fn ($query) => $query->whereIn('lead_id', $baseQuery()->select('id')),
+                    fn ($query) => $query->where('changed_by', $user->id),
+                )
                 ->where('created_at', '>=', now()->subDays(7))
                 ->distinct()
                 ->count('lead_id'),
-            'avg_hours_in_gestion' => $this->averageHoursInGestion($user),
+            'avg_hours_in_gestion' => $this->averageHoursInGestion($baseQuery()),
             // Call2/PDG checkpoint breakdown - current status snapshot, not
             // historical attempt counts, consistent with the rest of this
             // dashboard being "what needs attention right now".
@@ -138,8 +146,71 @@ class GestionService
             // logic hasn't been built) - this surfaces leads sitting here
             // so it's visible that they still need a manual final step.
             'pdg_ok_count' => $baseQuery()->where('status', LeadStatusEnum::PDG_OK->value)->count(),
-            'queue' => $this->workQueue($user),
+            'queue' => $this->workQueue($baseQuery(), $supervisor),
+            // Supervisor: what his team got validated lately, nothing to act on
+            'read_only' => $supervisor,
+            'team' => $supervisor && $user->team ? ['id' => $user->team->id, 'name' => $user->team->name] : null,
+            'validated' => $supervisor ? $this->recentlyValidated($baseQuery()) : null,
         ];
+    }
+
+    /**
+     * A supervisor (agent with the team-stats permission) follows his team's
+     * leads through gestion, read-only. He has no gestion role, so leads are
+     * never handed to him and he gets none of gestion's notifications.
+     */
+    public function isSupervisorView(User $user): bool
+    {
+        return ! $user->can(PermissionEnum::GESTION_REVIEW->value)
+            && $user->hasRole(RoleEnum::AGENT->value)
+            && $user->can(PermissionEnum::DASHBOARD_VIEW_TEAM_STATS->value);
+    }
+
+    public function canViewDashboard(User $user): bool
+    {
+        return $user->can(PermissionEnum::GESTION_REVIEW->value) || $this->isSupervisorView($user);
+    }
+
+    /**
+     * Gestion user: the leads handed to him. Supervisor: the leads of his team.
+     */
+    protected function scopedLeads(User $user, bool $supervisor): Builder
+    {
+        if (! $supervisor) {
+            return Lead::where('gestion_assigned_to', $user->id);
+        }
+
+        return $user->team_id
+            ? Lead::where('team_id', $user->team_id)
+            : Lead::whereRaw('1 = 0');
+    }
+
+    /**
+     * Leads validated in the last 30 days, latest first.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function recentlyValidated(Builder $leads): array
+    {
+        return $leads
+            ->where('status', LeadStatusEnum::VALIDE->value)
+            ->where('validated_at', '>=', now()->subDays(30))
+            ->with(['assignedAgent:id,name', 'gestionAssignedAgent:id,name'])
+            ->orderByDesc('validated_at')
+            ->limit(500)
+            ->get()
+            ->map(fn (Lead $lead) => [
+                'id' => $lead->id,
+                'reference' => $lead->reference,
+                'first_name' => $lead->first_name,
+                'last_name' => $lead->last_name,
+                'insurance_type' => $lead->insurance_type,
+                'status' => $lead->status_code,
+                'agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,
+                'gestionnaire' => $lead->gestionAssignedAgent ? ['id' => $lead->gestionAssignedAgent->id, 'name' => $lead->gestionAssignedAgent->name] : null,
+                'validated_at' => $lead->validated_at?->toIso8601String(),
+            ])
+            ->all();
     }
 
     /**
@@ -166,11 +237,11 @@ class GestionService
      *
      * @return array<int, array<string, mixed>>
      */
-    protected function workQueue(User $user): array
+    protected function workQueue(Builder $leads, bool $supervisor = false): array
     {
-        $leads = Lead::where('gestion_assigned_to', $user->id)
+        $leads = $leads
             ->whereIn('status', self::activeStatuses())
-            ->with('assignedAgent:id,name')
+            ->with($supervisor ? ['assignedAgent:id,name', 'gestionAssignedAgent:id,name'] : ['assignedAgent:id,name'])
             ->addSelect([
                 'status_since' => LeadStatusHistory::select('created_at')
                     ->whereColumn('lead_id', 'leads.id')
@@ -193,7 +264,9 @@ class GestionService
                 'dvc_status' => $lead->dvc_status?->value,
                 'agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,
                 'status_since' => $lead->status_since ? Carbon::parse($lead->status_since)->toIso8601String() : $lead->updated_at?->toIso8601String(),
-            ])
+            ] + ($supervisor ? [
+                'gestionnaire' => $lead->gestionAssignedAgent ? ['id' => $lead->gestionAssignedAgent->id, 'name' => $lead->gestionAssignedAgent->name] : null,
+            ] : []))
             ->sortBy('status_since')
             ->values()
             ->all();
@@ -206,9 +279,9 @@ class GestionService
      * directly. Leads still sitting in GESTION (no exit row yet) are
      * excluded from the average, not counted as zero.
      */
-    protected function averageHoursInGestion(User $user): ?float
+    protected function averageHoursInGestion(Builder $leads): ?float
     {
-        $leadIds = Lead::where('gestion_assigned_to', $user->id)->pluck('id');
+        $leadIds = $leads->pluck('id');
 
         if ($leadIds->isEmpty()) {
             return null;
