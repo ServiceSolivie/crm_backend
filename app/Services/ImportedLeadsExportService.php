@@ -150,7 +150,16 @@ class ImportedLeadsExportService
             'doublons' => (clone $query)->where('is_doublon', true)->count(),
             'statuses' => $statuses->all(),
             'stages' => $stages->all(),
-            'status_columns' => $this->statusColumns($statuses->pluck('code')->all()),
+            // Every status a lead can be moved to (0 when none in the period),
+            // plus a deactivated one still found on leads
+            'status_columns' => $this->statusColumns(
+                collect($this->statuses->codes())
+                    ->filter(fn (string $code) => $this->statuses->selectable($code))
+                    ->merge($statuses->pluck('code'))
+                    ->unique()
+                    ->values()
+                    ->all(),
+            ),
             'agents' => $this->byAgent($query),
             'sources' => $this->bySource($query),
             'insurances' => $this->byInsurance($query),
@@ -198,19 +207,52 @@ class ImportedLeadsExportService
         $rows = $this->stagesBy($query, 'assigned_to', withStatuses: true);
         $users = User::with('team:id,name')
             ->whereIn('id', $rows->keys()->filter()->all())
-            ->get(['id', 'name', 'team_id'])
+            ->get(['id', 'name', 'team_id', 'is_active'])
             ->keyBy('id');
 
-        return $rows
+        // Deactivated agents (or deleted ones) share one line, so the totals still add up
+        $isInactive = fn (string $id) => $id !== '' && ! ($users->get((int) $id)?->is_active ?? false);
+        $inactive = $rows->filter(fn (array $counts, string $id) => $isInactive($id));
+
+        $lines = $rows
+            ->reject(fn (array $counts, string $id) => $isInactive($id))
             ->map(fn (array $counts, string $id) => [
                 'agent_id' => $id === '' ? null : (int) $id,
-                'name' => $id === '' ? null : ($users->get((int) $id)?->name ?? '—'),
+                'name' => $id === '' ? null : $users->get((int) $id)?->name,
                 'team' => $id === '' ? null : $users->get((int) $id)?->team?->name,
                 ...$counts,
             ])
             ->sort(fn (array $a, array $b) => [$a['agent_id'] === null, $b['received']] <=> [$b['agent_id'] === null, $a['received']])
-            ->values()
-            ->all();
+            ->values();
+
+        if ($inactive->isNotEmpty()) {
+            $lines->push(['agent_id' => null, 'inactive' => true, 'name' => 'Agents désactivés', 'team' => null, ...$this->mergeCounts($inactive)]);
+        }
+
+        return $lines->all();
+    }
+
+    /**
+     * Sum of several stagesBy() lines.
+     *
+     * @param  Collection<string, array<string, mixed>>  $rows
+     * @return array<string, mixed>
+     */
+    protected function mergeCounts(Collection $rows): array
+    {
+        $sum = ['received' => 0, 'untouched' => 0, 'in_progress' => 0, 'validated' => 0, 'lost' => 0];
+        $statuses = [];
+
+        foreach ($rows as $row) {
+            foreach (array_keys($sum) as $key) {
+                $sum[$key] += $row[$key];
+            }
+            foreach ($row['statuses'] ?? [] as $code => $n) {
+                $statuses[$code] = ($statuses[$code] ?? 0) + $n;
+            }
+        }
+
+        return [...$sum, 'conversion' => $this->rate($sum['validated'], $sum['received']), 'statuses' => $statuses];
     }
 
     /**

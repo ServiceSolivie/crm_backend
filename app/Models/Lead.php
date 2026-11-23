@@ -80,6 +80,7 @@ class Lead extends Model
             'expected_revenue' => 'decimal:2',
             'payment_status' => PaymentStatusEnum::class,
             'validated_at' => 'datetime',
+            'assigned_at' => 'datetime',
             'is_doublon' => 'boolean',
             'dvc_status' => DvcStatusEnum::class,
             'dvc_signed_at' => 'datetime',
@@ -92,6 +93,12 @@ class Lead extends Model
         static::saving(function (Lead $lead) {
             if ($lead->isDirty('phone') || $lead->phone_e164 === null) {
                 $lead->phone_e164 = PhoneNumber::toE164($lead->phone);
+            }
+
+            // When the lead was last dispatched (assigned or reassigned): the
+            // leads table lists the latest dispatched first.
+            if ($lead->isDirty('assigned_to')) {
+                $lead->assigned_at = $lead->assigned_to ? now() : null;
             }
         });
 
