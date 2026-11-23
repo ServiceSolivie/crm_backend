@@ -12,5 +12,6 @@ Route::middleware(['auth:sanctum', 'active'])->prefix('reports')->name('reports.
     Route::get('/agents', [ReportController::class, 'agents'])->name('agents');
     Route::get('/conversion', [ReportController::class, 'conversion'])->name('conversion');
     Route::get('/revenue', [ReportController::class, 'revenue'])->name('revenue');
+    Route::get('/agent-revenue', [ReportController::class, 'agentRevenue'])->name('agent-revenue');
     Route::get('/revenue/summary', [ReportController::class, 'revenueSummary'])->name('revenue.summary');
 });

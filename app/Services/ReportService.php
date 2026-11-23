@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Enums\PermissionEnum;
+use App\Enums\RoleEnum;
+use App\Exceptions\ApiException;
 use App\Filters\AppointmentFilter;
 use App\Filters\LeadFilter;
 use App\Models\User;
@@ -10,9 +12,11 @@ use App\Repositories\Contracts\AppointmentRepositoryInterface;
 use App\Repositories\Contracts\LeadRepositoryInterface;
 use App\Repositories\Contracts\ReportRepositoryInterface;
 use App\Support\LeadSourceScope;
+use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class ReportService
 {
@@ -117,6 +121,77 @@ class ReportService
             $from,
             $to,
         );
+    }
+
+    /**
+     * « CA par agent »: one agent's money over the period (default: the
+     * last 12 months), and the agents the user may pick from:
+     *   - REVENUE_VIEW_ALL: every agent;
+     *   - REVENUE_VIEW_TEAM: the agents of his team;
+     *   - REVENUE_VIEW_PERSONAL: himself only, without the team ranking.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ApiException
+     */
+    public function agentRevenue(User $user, ?int $agentId, ?string $from, ?string $to): array
+    {
+        $to = $to ? CarbonImmutable::parse($to) : CarbonImmutable::today();
+        $from = $from ? CarbonImmutable::parse($from) : $to->startOfMonth()->subMonths(11);
+
+        $agents = $this->revenueAgents($user);
+        $agentId ??= $agents->contains('id', $user->id) ? $user->id : $agents->first()?->id;
+        $agent = $agents->firstWhere('id', $agentId);
+
+        if ($agent === null) {
+            throw new ApiException('Vous ne pouvez pas consulter le chiffre d’affaires de cet agent.', 403);
+        }
+
+        $teamAgents = $this->seesOthersRevenue($user) && $agent->team_id
+            ? $agents->where('team_id', $agent->team_id)->pluck('id')->all()
+            : null;
+
+        return [
+            'agent' => [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'is_active' => (bool) $agent->is_active,
+                'team' => $agent->team ? ['id' => $agent->team->id, 'name' => $agent->team->name] : null,
+            ],
+            'agents' => $agents->map(fn (User $a) => ['id' => $a->id, 'name' => $a->name, 'is_active' => (bool) $a->is_active])->values()->all(),
+            'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
+        ] + $this->reports->agentRevenue($agent, $from, $to, $user->allowedSourceIds(), $teamAgents);
+    }
+
+    protected function seesOthersRevenue(User $user): bool
+    {
+        return $user->can(PermissionEnum::REVENUE_VIEW_ALL->value)
+            || $user->can(PermissionEnum::REVENUE_VIEW_TEAM->value);
+    }
+
+    /**
+     * The agents whose revenue the user may see, active ones first.
+     *
+     * @return Collection<int, User>
+     */
+    protected function revenueAgents(User $user): Collection
+    {
+        $query = User::query()->role(RoleEnum::AGENT->value)->with('team:id,name')
+            ->orderByDesc('is_active')->orderBy('name');
+
+        if ($user->can(PermissionEnum::REVENUE_VIEW_ALL->value)) {
+            return $query->get();
+        }
+
+        if ($user->can(PermissionEnum::REVENUE_VIEW_TEAM->value)) {
+            return $user->team_id ? $query->where('team_id', $user->team_id)->get() : collect();
+        }
+
+        if ($user->can(PermissionEnum::REVENUE_VIEW_PERSONAL->value)) {
+            return User::query()->whereKey($user->id)->with('team:id,name')->get();
+        }
+
+        return collect();
     }
 
     protected function revenueScope(User $user): ?Closure

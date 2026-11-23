@@ -6,6 +6,7 @@ use App\Filters\AppointmentFilter;
 use App\Filters\LeadFilter;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Report\AgentReportRequest;
+use App\Http\Requests\Report\AgentRevenueReportRequest;
 use App\Http\Requests\Report\ConversionReportRequest;
 use App\Http\Requests\Report\RevenueReportRequest;
 use App\Http\Requests\Report\TeamReportRequest;
@@ -147,6 +148,23 @@ class ReportController extends Controller
         );
 
         return $this->success($summary);
+    }
+
+    /**
+     * « CA par agent »: one agent's money month by month.
+     */
+    public function agentRevenue(AgentRevenueReportRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless($this->reportService->canViewRevenue($user), 403, 'Vous n\'avez pas la permission de consulter le chiffre d\'affaires.');
+
+        return $this->success($this->reportService->agentRevenue(
+            $user,
+            $request->validated('agent_id') !== null ? (int) $request->validated('agent_id') : null,
+            $request->validated('from'),
+            $request->validated('to'),
+        ));
     }
 
     public function conversion(ConversionReportRequest $request): JsonResponse
