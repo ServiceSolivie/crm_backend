@@ -15,11 +15,25 @@ class ImportedLeadsExportRequest extends FormRequest
     public const MAX_DAYS = 366;
 
     /**
-     * Super admin only: refused before the input is even looked at.
+     * Super admin, or a supervisor for his own team: refused before the
+     * input is even looked at.
      */
     public function authorize(): bool
     {
-        return (bool) $this->user()?->can(PermissionEnum::LEADS_EXPORT_IMPORTED->value);
+        $user = $this->user();
+
+        return (bool) ($user?->can(PermissionEnum::LEADS_EXPORT_IMPORTED->value) || $user?->isSupervisor());
+    }
+
+    /**
+     * The team the export is limited to: none for the super admin, the
+     * supervisor's own team otherwise (0 when he has none: nothing).
+     */
+    public function teamId(): ?int
+    {
+        $user = $this->user();
+
+        return $user->can(PermissionEnum::LEADS_EXPORT_IMPORTED->value) ? null : (int) ($user->team_id ?? 0);
     }
 
     /**

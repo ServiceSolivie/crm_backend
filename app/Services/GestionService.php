@@ -161,9 +161,7 @@ class GestionService
      */
     public function isSupervisorView(User $user): bool
     {
-        return ! $user->can(PermissionEnum::GESTION_REVIEW->value)
-            && $user->hasRole(RoleEnum::AGENT->value)
-            && $user->can(PermissionEnum::DASHBOARD_VIEW_TEAM_STATS->value);
+        return ! $user->can(PermissionEnum::GESTION_REVIEW->value) && $user->isSupervisor();
     }
 
     public function canViewDashboard(User $user): bool

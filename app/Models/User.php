@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\PermissionEnum;
 use App\Enums\RoleEnum;
 use App\Traits\Filterable;
 use Database\Factories\UserFactory;
@@ -124,6 +125,16 @@ class User extends Authenticatable
     public function leadSources(): BelongsToMany
     {
         return $this->belongsToMany(LeadSource::class)->withTimestamps();
+    }
+
+    /**
+     * « Superviseur »: an agent with the team-stats permission. He follows
+     * his team (dashboard, reports, gestion, exports) without managing it.
+     */
+    public function isSupervisor(): bool
+    {
+        return $this->hasRole(RoleEnum::AGENT->value)
+            && $this->can(PermissionEnum::DASHBOARD_VIEW_TEAM_STATS->value);
     }
 
     /**
