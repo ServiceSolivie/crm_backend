@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\ApiException;
+use App\Http\Middleware\BlockListedIps;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\VerifyRingoverWebhook;
@@ -8,6 +9,7 @@ use App\Http\Middleware\VerifyWebhookSecret;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -44,6 +46,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'ringover.webhook' => VerifyRingoverWebhook::class,
         ]);
         $middleware->api(append: [SetLocale::class]);
+        // « IP bloquées »: refused before anything else, login included
+        $middleware->prepend(BlockListedIps::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(function (Request $request, Throwable $e) {
@@ -92,7 +96,7 @@ return Application::configure(basePath: dirname(__DIR__))
             return ApiResponse::error('Server error.', 500);
         });
     })
-    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+    ->withSchedule(function (Schedule $schedule): void {
         // Leads arrive live through the Google Sheets webhook
         // (GoogleSheetLeadImporter::importFromWebhookPayload()); nothing polls the sheets.
         $schedule->command('appointments:send-today-reminders')->dailyAt('07:00');
