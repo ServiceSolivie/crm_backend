@@ -73,6 +73,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // MySQL connections refused then retried (App\Database\RetryingMySqlConnector)
+        'db_connection' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/db-connection.log'),
+            'level' => 'debug',
+            'days' => 30,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

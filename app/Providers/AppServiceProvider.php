@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Database\RetryingMySqlConnector;
 use App\Enums\PermissionEnum;
 use App\Models\User;
 use App\Support\InsuranceTypeCatalog;
@@ -19,6 +20,9 @@ class AppServiceProvider extends ServiceProvider
         // One catalog per request: the custom statuses are read once
         $this->app->scoped(LeadStatusCatalog::class);
         $this->app->scoped(InsuranceTypeCatalog::class);
+
+        // MySQL refusing a connection for an instant: retried, and diagnosed
+        $this->app->bind('db.connector.mysql', RetryingMySqlConnector::class);
     }
 
     /**

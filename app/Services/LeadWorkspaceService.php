@@ -173,6 +173,20 @@ class LeadWorkspaceService
         })->all();
     }
 
+    /** What agents, supervisors and gestion see in a lead's « Activité » */
+    public const LIMITED_ACTIVITY_TYPES = ['note', 'document'];
+
+    /**
+     * The whole « Activité » (statuses, calls, appointments, payments…):
+     * super admin, manager, team leader and marketing. Agents, supervisors
+     * and gestion only get the notes and documents.
+     */
+    public function seesFullActivity(User $user): bool
+    {
+        return ! $user->hasAnyRole([RoleEnum::AGENT->value, RoleEnum::GESTION->value])
+            || $user->hasAnyRole([RoleEnum::SUPER_ADMIN->value, RoleEnum::MANAGER->value, RoleEnum::TEAM_LEADER->value]);
+    }
+
     /**
      * Everything that happened on a lead, newest first, in one paginated list.
      */
@@ -258,6 +272,12 @@ class LeadWorkspaceService
                         'original_filename' => $d->original_filename,
                     ]]);
             }
+        }
+
+        // Agents (supervisors included) and gestion only see the notes and
+        // documents; the rest of the history is for managers and team leaders
+        if (! $this->seesFullActivity($user)) {
+            $items = $items->filter(fn ($i) => in_array($i['type'], self::LIMITED_ACTIVITY_TYPES, true));
         }
 
         // "status" also covers reassignments (both are pipeline changes in the feed)
