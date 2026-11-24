@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Services\GoogleSheetLeadImporter;
+use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -30,7 +31,8 @@ class GoogleSheetsWebhookController extends Controller
             return $this->success(['status' => 'skipped'], 'Empty or non-JSON payload');
         }
 
-        $result = $this->importer->importFromWebhookPayload($payload);
+        // Leads created or updated here are logged as done by « Google Sheet »
+        $result = ActivityLogger::as('Google Sheet', fn () => $this->importer->importFromWebhookPayload($payload));
 
         Log::info('google_sheets_webhook: '.$result['status'], ['payload' => $payload, 'result' => $result]);
 

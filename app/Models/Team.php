@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\Filterable;
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +12,14 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Team extends Model
 {
+    use LogsActivity;
+
+    /** « Journal d'activité » */
+    protected string $activityCategory = 'user';
+
+    /** @var array<string, class-string> */
+    protected array $activityRefs = ['manager_id' => User::class, 'leader_id' => User::class];
+
     use Filterable, HasFactory;
 
     /**

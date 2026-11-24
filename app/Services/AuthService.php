@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\ApiException;
 use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Support\ActivityLogger;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -57,6 +58,7 @@ class AuthService
 
         if (RateLimiter::tooManyAttempts($key, self::MAX_LOGIN_ATTEMPTS)) {
             $seconds = RateLimiter::availableIn($key);
+            $this->logAttempt('auth.login_blocked', $user, $credentials['email'], ['raison' => 'trop de tentatives', 'bloqué pour' => "{$seconds} s"]);
 
             throw (new ApiException(
                 "Trop de tentatives de connexion. Réessayez dans {$seconds} secondes.",
@@ -68,6 +70,10 @@ class AuthService
         if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             RateLimiter::hit($key, self::LOGIN_LOCK_SECONDS);
             $attemptsLeft = max(0, self::MAX_LOGIN_ATTEMPTS - RateLimiter::attempts($key));
+            $this->logAttempt('auth.login_failed', $user, $credentials['email'], [
+                'raison' => $user ? 'mot de passe incorrect' : 'e-mail inconnu',
+                'essais restants' => $attemptsLeft,
+            ]);
 
             throw (new ApiException('These credentials do not match our records.', 401, [
                 'attempts_left' => $attemptsLeft,
@@ -80,6 +86,8 @@ class AuthService
         RateLimiter::clear($key);
 
         if (! $user->is_active) {
+            $this->logAttempt('auth.login_failed', $user, $credentials['email'], ['raison' => 'compte désactivé']);
+
             throw (new ApiException('This account has been deactivated.', 403))
                 ->withLogContext($who('compte désactivé'));
         }
@@ -88,6 +96,7 @@ class AuthService
         $remembered = $this->devices->rememberedLogin($user, $credentials['device_mark'] ?? null, $ip);
 
         if ($remembered !== null) {
+            ActivityLogger::log('auth', 'auth.login', $user, 'Connexion (machine reconnue)', user: $user);
             $name = $this->devices->enforcedFor($user) ? $remembered['device']->tokenName() : ($credentials['device_name'] ?? 'api');
 
             return ['user' => $user, 'token' => $user->createToken($name)->plainTextToken, 'device' => null, 'device_mark' => $remembered['mark']];
@@ -96,10 +105,13 @@ class AuthService
         $device = $this->devices->begin($user, $credentials['device_credential_id'] ?? null);
 
         if ($device !== null && $this->devices->enforcedFor($user)) {
+            ActivityLogger::log('auth', 'auth.login_device_check', $user, 'Mot de passe correct, vérification de la machine demandée', user: $user);
+
             return ['user' => $user, 'token' => null, 'device' => $device, 'device_mark' => null];
         }
 
         $token = $user->createToken($credentials['device_name'] ?? 'api')->plainTextToken;
+        ActivityLogger::log('auth', 'auth.login', $user, 'Connexion', user: $user);
 
         return ['user' => $user, 'token' => $token, 'device' => $device, 'device_mark' => null];
     }
@@ -109,7 +121,25 @@ class AuthService
      */
     public function logout(User $user): void
     {
+        ActivityLogger::log('auth', 'auth.logout', $user, 'Déconnexion', user: $user);
         $user->currentAccessToken()?->delete();
+    }
+
+    /**
+     * A refused or blocked login: no one is signed in, the line shows the
+     * e-mail typed (never the password) and the account it matches, if any.
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    protected function logAttempt(string $action, ?User $user, string $email, array $meta): void
+    {
+        ActivityLogger::as('—', fn () => ActivityLogger::log(
+            'auth',
+            $action,
+            $user,
+            'Tentative de connexion : '.$email,
+            meta: ['e-mail saisi' => $email] + $meta,
+        ));
     }
 
     public function updateProfile(User $user, array $data): User
@@ -140,5 +170,7 @@ class AuthService
                 $data['password']
             ),
         ]);
+
+        ActivityLogger::log('auth', 'auth.password_changed', $user, 'Mot de passe changé par l’utilisateur', user: $user);
     }
 }

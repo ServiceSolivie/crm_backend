@@ -22,6 +22,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     require __DIR__.'/api/v1/dashboard.php';
     require __DIR__.'/api/v1/reports.php';
     require __DIR__.'/api/v1/users.php';
+    require __DIR__.'/api/v1/activity-logs.php';
     require __DIR__.'/api/v1/lead-sources.php';
     require __DIR__.'/api/v1/lead-statuses.php';
     require __DIR__.'/api/v1/insurance-types.php';

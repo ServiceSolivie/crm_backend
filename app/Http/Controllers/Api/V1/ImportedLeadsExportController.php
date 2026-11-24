@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LeadExport\ImportedLeadsExportRequest;
 use App\Services\ImportedLeadsExportService;
+use App\Support\ActivityLogger;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -45,6 +46,12 @@ class ImportedLeadsExportController extends Controller
         $path = tempnam(sys_get_temp_dir(), 'leads-export-');
 
         $written = $this->exports->write($query, $range, $request->origin(), $this->exports->summary($query), $request->user(), $path);
+
+        ActivityLogger::log('export', 'export.imported_leads', null, "Export retours leads : {$range['label']} ({$written} lignes)", meta: [
+            'fichier' => $range['file_name'],
+            'origine' => $request->origin(),
+            'lignes' => $written,
+        ]);
 
         Log::info('Imported leads export downloaded', [
             'user_id' => $request->user()->id,

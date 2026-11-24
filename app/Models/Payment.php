@@ -5,11 +5,25 @@ namespace App\Models;
 use App\Enums\PaymentMethodEnum;
 use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PaymentSourceEnum;
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Payment extends Model
 {
+    use LogsActivity;
+
+    /** « Journal d'activité » */
+    protected string $activityCategory = 'payment';
+
+    /** @var array<string, class-string> */
+    protected array $activityRefs = ['created_by' => User::class, 'status_changed_by' => User::class];
+
+    protected function activitySubject(): ?Model
+    {
+        return $this->lead ?? $this;
+    }
+
     /**
      * @var list<string>
      */

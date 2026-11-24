@@ -2,10 +2,11 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\PermissionEnum;
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\RoleEnum;
 use App\Traits\Filterable;
+use App\Traits\LogsActivity;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,17 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
+    use LogsActivity;
+
+    /** « Journal d'activité » */
+    protected string $activityCategory = 'user';
+
+    /** @var array<int, string> */
+    protected array $activityIgnore = ['last_login_at', 'ringover_linked_at'];
+
+    /** @var array<string, class-string> */
+    protected array $activityRefs = ['team_id' => Team::class];
+
     /** @use HasFactory<UserFactory> */
     use Filterable, HasApiTokens, HasFactory, HasRoles, Notifiable;
 

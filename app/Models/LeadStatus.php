@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\LeadStatusCatalog;
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,6 +14,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class LeadStatus extends Model
 {
+    use LogsActivity;
+
+    /** « Journal d'activité » */
+    protected string $activityCategory = 'settings';
+
     /**
      * @var list<string>
      */

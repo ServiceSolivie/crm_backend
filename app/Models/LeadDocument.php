@@ -2,12 +2,26 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LeadDocument extends Model
 {
+    use LogsActivity;
+
+    /** « Journal d'activité » */
+    protected string $activityCategory = 'lead';
+
+    /** @var array<string, class-string> */
+    protected array $activityRefs = ['uploaded_by' => User::class];
+
+    protected function activitySubject(): ?Model
+    {
+        return $this->lead ?? $this;
+    }
+
     use HasFactory;
 
     protected $fillable = [

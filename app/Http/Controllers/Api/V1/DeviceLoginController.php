@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Services\DeviceTrustService;
+use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -30,7 +31,17 @@ class DeviceLoginController extends Controller
             'signature' => ['required', 'string'],
         ]);
 
-        $result = $this->devices->verify($data['ticket'], $data, $request->ip());
+        try {
+            $result = $this->devices->verify($data['ticket'], $data, $request->ip());
+        } catch (\Throwable $e) {
+            ActivityLogger::as('—', fn () => ActivityLogger::log('auth', 'auth.device_refused', null, 'Machine refusée à la connexion', meta: ['raison' => $e->getMessage()]));
+
+            throw $e;
+        }
+
+        if ($result['token'] !== null) {
+            ActivityLogger::log('auth', 'auth.login', $result['user'], 'Connexion (machine vérifiée)', user: $result['user']);
+        }
 
         // The PIN was checked: the browser is remembered for the next logins
         if ($result['token'] === null) {

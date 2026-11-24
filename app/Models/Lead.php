@@ -9,9 +9,11 @@ use App\Enums\DvcStatusEnum;
 use App\Enums\LeadStatusEnum;
 use App\Enums\PaymentRecordStatusEnum;
 use App\Enums\PaymentStatusEnum;
+use App\Support\InsuranceTypeCatalog;
 use App\Support\LeadStatusCatalog;
 use App\Support\PhoneNumber;
 use App\Traits\Filterable;
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,7 +23,54 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Lead extends Model
 {
+    use LogsActivity {
+        activityValue as traitActivityValue;
+    }
+
+    /** « Journal d'activité » */
+    protected string $activityCategory = 'lead';
+
+    /** @var array<int, string> */
+    protected array $activityIgnore = ['phone_e164', 'assigned_at', 'sheet_row_key'];
+
+    /** @var array<string, class-string> */
+    protected array $activityRefs = ['assigned_to' => User::class, 'gestion_assigned_to' => User::class, 'team_id' => Team::class, 'lead_source_id' => LeadSource::class, 'doublon_of_lead_id' => Lead::class];
+
     use Filterable, HasFactory, SoftDeletes;
+
+    /** The most telling action of a change: status, assignment, then any edit */
+    protected function activityAction(string $event, array $changes): string
+    {
+        return match (true) {
+            $event !== 'updated' => "lead.{$event}",
+            isset($changes['status']) => 'lead.status_changed',
+            isset($changes['assigned_to']) => 'lead.assigned',
+            isset($changes['payment_status']) => 'lead.payment_status_changed',
+            isset($changes['dvc_status']) => 'lead.dvc_changed',
+            default => 'lead.updated',
+        };
+    }
+
+    /** Statuses and types by their label, not their code */
+    protected function activityValue(string $key, mixed $value): mixed
+    {
+        if ($value !== null && $value !== '') {
+            switch ($key) {
+                case 'status':
+                    return app(LeadStatusCatalog::class)->label((string) $value) ?? $value;
+                case 'payment_status':
+                    return PaymentStatusEnum::tryFrom((string) $value)?->label() ?? $value;
+                case 'dvc_status':
+                    return DvcStatusEnum::tryFrom((string) $value)?->label() ?? $value;
+                case 'insurance_type':
+                    return app(InsuranceTypeCatalog::class)->label((string) $value) ?? $value;
+                case 'comment':
+                    return 'modifié';
+            }
+        }
+
+        return $this->traitActivityValue($key, $value);
+    }
 
     /**
      * @var list<string>

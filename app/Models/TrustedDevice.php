@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\TrustedDeviceStatusEnum;
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -11,6 +12,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class TrustedDevice extends Model
 {
+    use LogsActivity;
+
+    /** « Journal d'activité » */
+    protected string $activityCategory = 'user';
+
+    /** @var array<int, string> */
+    protected array $activityIgnore = ['sign_count', 'last_used_at', 'last_used_by', 'last_ip', 'user_agent', 'public_key'];
+
+    /** @var array<string, class-string> */
+    protected array $activityRefs = ['registered_by' => User::class, 'approved_by' => User::class];
+
     /** Prefix of the API tokens issued through a machine: "device:12" */
     public const TOKEN_PREFIX = 'device:';
 
