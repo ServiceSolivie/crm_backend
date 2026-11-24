@@ -130,8 +130,8 @@ class GoogleSheetLeadImporter
 
         $rows = $this->sheetsService->getRows($sheetName, 2);
 
-        $systemUser = User::where('email', 'akkaoui@crm.test')->first()
-            ?? User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->first();
+        // Owned by the technical import account, never by a real person
+        $systemUser = User::system();
 
         $imported = 0;
         $skipped = 0;
@@ -369,8 +369,8 @@ class GoogleSheetLeadImporter
             return ['status' => 'skipped_incomplete'];
         }
 
-        $systemUser = User::where('email', 'akkaoui@crm.test')->first()
-            ?? User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->first();
+        // Owned by the technical import account, never by a real person
+        $systemUser = User::system();
 
         $leadData = [
             'first_name' => $name['first_name'],

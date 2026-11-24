@@ -87,7 +87,8 @@ class LeadImportService
                 continue;
             }
 
-            $this->leadService->createLead($this->buildLeadData($record, $import), $user);
+            // The lead belongs to the import account; the import keeps who uploaded the file
+            $this->leadService->createLead($this->buildLeadData($record, $import), User::system());
             $successCount++;
         }
 

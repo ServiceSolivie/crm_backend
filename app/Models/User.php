@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -125,6 +126,27 @@ class User extends Authenticatable
     public function leadSources(): BelongsToMany
     {
         return $this->belongsToMany(LeadSource::class)->withTimestamps();
+    }
+
+    /** The technical account that owns leads coming from the sheets and imports */
+    public const SYSTEM_EMAIL = 'import-automatique@crm.system';
+
+    /**
+     * « CRM – Import automatique »: created on first use, never active (it
+     * can't log in). Leads from the sheets and file imports belong to it, so
+     * no real person owns tens of thousands of leads.
+     */
+    public static function system(): self
+    {
+        return static::query()->firstOrCreate(
+            ['email' => self::SYSTEM_EMAIL],
+            ['name' => 'CRM – Import automatique', 'password' => Str::password(40), 'is_active' => false],
+        );
+    }
+
+    public function isSystem(): bool
+    {
+        return $this->email === self::SYSTEM_EMAIL;
     }
 
     /**
