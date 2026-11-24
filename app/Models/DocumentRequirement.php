@@ -3,11 +3,17 @@
 namespace App\Models;
 
 use App\Enums\ClientTypeEnum;
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DocumentRequirement extends Model
 {
+    use LogsActivity;
+
+    /** « Journal d'activité » */
+    protected string $activityCategory = 'settings';
+
     protected $fillable = [
         'insurance_type',
         'client_type',

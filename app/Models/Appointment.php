@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AppointmentStatusEnum;
 use App\Traits\Filterable;
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,19 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Appointment extends Model
 {
+    use LogsActivity;
+
+    /** « Journal d'activité » */
+    protected string $activityCategory = 'lead';
+
+    /** @var array<string, class-string> */
+    protected array $activityRefs = ['agent_id' => User::class, 'created_by' => User::class];
+
+    protected function activitySubject(): ?Model
+    {
+        return $this->lead ?? $this;
+    }
+
     use Filterable, HasFactory, SoftDeletes;
 
     /**

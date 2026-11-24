@@ -11,6 +11,7 @@ use App\Http\Resources\LeadResource;
 use App\Models\Lead;
 use App\Models\LeadDocument;
 use App\Services\LeadDocumentService;
+use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -48,6 +49,7 @@ class LeadDocumentController extends Controller
     public function download(Lead $lead, LeadDocument $document): StreamedResponse
     {
         $this->authorize('download', $document);
+        ActivityLogger::log('export', 'document.downloaded', $lead, 'Document téléchargé : '.($document->original_filename ?? '#'.$document->id));
 
         return $this->documentService->downloadDocument($document);
     }

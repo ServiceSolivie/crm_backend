@@ -6,10 +6,12 @@ use App\Enums\LeadImportStatusEnum;
 use App\Enums\PermissionEnum;
 use App\Exceptions\ApiException;
 use App\Filters\LeadImportFilter;
+use App\Models\Lead;
 use App\Models\LeadImport;
 use App\Models\LeadSource;
 use App\Models\User;
 use App\Repositories\Contracts\LeadImportRepositoryInterface;
+use App\Support\ActivityLogger;
 use App\Support\InsuranceTypeCatalog;
 use Closure;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -74,6 +76,8 @@ class LeadImportService
 
         $errors = [];
         $successCount = 0;
+        // One summary line for the whole file, not one per lead
+        Lead::$logActivity = false;
 
         foreach ($rows as $index => $row) {
             $lineNumber = $index + 2;
@@ -91,6 +95,12 @@ class LeadImportService
             $this->leadService->createLead($this->buildLeadData($record, $import), User::system());
             $successCount++;
         }
+
+        Lead::$logActivity = true;
+        ActivityLogger::log('lead', 'import.completed', null, "Import de fichier : {$successCount} lead(s) créé(s)", meta: [
+            'fichier' => $file->getClientOriginalName(),
+            'erreurs' => count($errors),
+        ], user: $user);
 
         $status = $successCount > 0 ? LeadImportStatusEnum::COMPLETED : LeadImportStatusEnum::FAILED;
 

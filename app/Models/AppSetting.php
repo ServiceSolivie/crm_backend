@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\LogsActivity;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -9,6 +10,11 @@ use Illuminate\Database\Eloquent\Model;
  */
 class AppSetting extends Model
 {
+    use LogsActivity;
+
+    /** « Journal d'activité » */
+    protected string $activityCategory = 'settings';
+
     protected $primaryKey = 'key';
 
     public $incrementing = false;

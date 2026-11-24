@@ -8,6 +8,7 @@ use App\Exceptions\ApiException;
 use App\Filters\UserFilter;
 use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Support\ActivityLogger;
 use App\Support\SlackAlert;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -214,6 +215,7 @@ class UserService
     public function resetPassword(User $target, string $newPassword): User
     {
         $target->update(['password' => Hash::make($newPassword)]);
+        ActivityLogger::log('auth', 'auth.password_reset', $target, 'Mot de passe réinitialisé par un administrateur');
 
         return $target->refresh();
     }

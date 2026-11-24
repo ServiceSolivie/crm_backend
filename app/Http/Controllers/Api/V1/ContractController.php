@@ -8,6 +8,7 @@ use App\Http\Resources\ContractResource;
 use App\Models\Contract;
 use App\Models\Lead;
 use App\Services\ContractService;
+use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -75,6 +76,7 @@ class ContractController extends Controller
     public function download(Contract $contract): StreamedResponse
     {
         $this->authorize('download', $contract);
+        ActivityLogger::log('export', 'contract.downloaded', $contract->lead ?? $contract, 'Contrat téléchargé : '.ActivityLogger::label($contract));
 
         return $this->contractService->download($contract);
     }
