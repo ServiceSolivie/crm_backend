@@ -212,6 +212,14 @@ class GestionService
     }
 
     /**
+     * A supervisor's « Suivi gestion » also lists his team's leads in these
+     * statuses (custom catalog codes: « Souscrit »), before they reach gestion.
+     *
+     * @var array<int, string>
+     */
+    public const SUPERVISOR_EXTRA_STATUSES = ['SOUSCRIS'];
+
+    /**
      * Statuses a lead goes through while it is with gestion.
      *
      * @return array<int, string>
@@ -238,7 +246,7 @@ class GestionService
     protected function workQueue(Builder $leads, bool $supervisor = false): array
     {
         $leads = $leads
-            ->whereIn('status', self::activeStatuses())
+            ->whereIn('status', $supervisor ? [...self::activeStatuses(), ...self::SUPERVISOR_EXTRA_STATUSES] : self::activeStatuses())
             ->with($supervisor ? ['assignedAgent:id,name', 'gestionAssignedAgent:id,name'] : ['assignedAgent:id,name'])
             ->addSelect([
                 'status_since' => LeadStatusHistory::select('created_at')
