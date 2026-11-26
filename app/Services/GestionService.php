@@ -110,8 +110,10 @@ class GestionService
      */
     public function dashboardStats(User $user): array
     {
-        $supervisor = $this->isSupervisorView($user);
-        $baseQuery = fn () => $this->scopedLeads($user, $supervisor);
+        $mode = $this->viewMode($user);
+        // Supervisor and super admin follow the leads read-only
+        $supervisor = $mode !== self::MODE_GESTION;
+        $baseQuery = fn () => $this->scopedLeads($user, $mode);
 
         $stuckLeads = $baseQuery()
             ->whereIn('status', [LeadStatusEnum::CALL2_KO->value, LeadStatusEnum::PDG_KO->value])
@@ -147,9 +149,11 @@ class GestionService
             // so it's visible that they still need a manual final step.
             'pdg_ok_count' => $baseQuery()->where('status', LeadStatusEnum::PDG_OK->value)->count(),
             'queue' => $this->workQueue($baseQuery(), $supervisor),
-            // Supervisor: what his team got validated lately, nothing to act on
+            // Supervisor / super admin: what got validated lately, nothing to act on
             'read_only' => $supervisor,
-            'team' => $supervisor && $user->team ? ['id' => $user->team->id, 'name' => $user->team->name] : null,
+            // Super admin: every team's leads
+            'overview' => $mode === self::MODE_OVERVIEW,
+            'team' => $mode === self::MODE_SUPERVISOR && $user->team ? ['id' => $user->team->id, 'name' => $user->team->name] : null,
             'validated' => $supervisor ? $this->recentlyValidated($baseQuery()) : null,
         ];
     }
@@ -161,26 +165,43 @@ class GestionService
      */
     public function isSupervisorView(User $user): bool
     {
-        return ! $user->can(PermissionEnum::GESTION_REVIEW->value) && $user->isSupervisor();
+        return $this->viewMode($user) === self::MODE_SUPERVISOR;
     }
 
     public function canViewDashboard(User $user): bool
     {
-        return $user->can(PermissionEnum::GESTION_REVIEW->value) || $this->isSupervisorView($user);
+        return $this->viewMode($user) !== null;
     }
 
-    /**
-     * Gestion user: the leads handed to him. Supervisor: the leads of his team.
-     */
-    protected function scopedLeads(User $user, bool $supervisor): Builder
-    {
-        if (! $supervisor) {
-            return Lead::where('gestion_assigned_to', $user->id);
-        }
+    public const MODE_GESTION = 'gestion';
 
-        return $user->team_id
-            ? Lead::where('team_id', $user->team_id)
-            : Lead::whereRaw('1 = 0');
+    public const MODE_SUPERVISOR = 'supervisor';
+
+    public const MODE_OVERVIEW = 'overview';
+
+    /**
+     * Super admin: every team, read-only (leads are never handed to him).
+     * Gestion: the leads handed to him. Supervisor: his team, read-only.
+     */
+    public function viewMode(User $user): ?string
+    {
+        return match (true) {
+            $user->hasRole(RoleEnum::SUPER_ADMIN->value) => self::MODE_OVERVIEW,
+            $user->can(PermissionEnum::GESTION_REVIEW->value) => self::MODE_GESTION,
+            $user->isSupervisor() => self::MODE_SUPERVISOR,
+            default => null,
+        };
+    }
+
+    protected function scopedLeads(User $user, ?string $mode): Builder
+    {
+        return match ($mode) {
+            self::MODE_OVERVIEW => Lead::query(),
+            self::MODE_GESTION => Lead::where('gestion_assigned_to', $user->id),
+            default => $user->team_id
+                ? Lead::where('team_id', $user->team_id)
+                : Lead::whereRaw('1 = 0'),
+        };
     }
 
     /**
@@ -193,9 +214,9 @@ class GestionService
         return $leads
             ->where('status', LeadStatusEnum::VALIDE->value)
             ->where('validated_at', '>=', now()->subDays(30))
-            ->with(['assignedAgent:id,name', 'gestionAssignedAgent:id,name'])
+            ->with(['assignedAgent:id,name', 'gestionAssignedAgent:id,name', 'team:id,name'])
             ->orderByDesc('validated_at')
-            ->limit(500)
+            ->limit(3000)
             ->get()
             ->map(fn (Lead $lead) => [
                 'id' => $lead->id,
@@ -206,14 +227,16 @@ class GestionService
                 'status' => $lead->status_code,
                 'agent' => $lead->assignedAgent ? ['id' => $lead->assignedAgent->id, 'name' => $lead->assignedAgent->name] : null,
                 'gestionnaire' => $lead->gestionAssignedAgent ? ['id' => $lead->gestionAssignedAgent->id, 'name' => $lead->gestionAssignedAgent->name] : null,
+                'team' => $lead->team ? ['id' => $lead->team->id, 'name' => $lead->team->name] : null,
                 'validated_at' => $lead->validated_at?->toIso8601String(),
             ])
             ->all();
     }
 
     /**
-     * A supervisor's « Suivi gestion » also lists his team's leads in these
-     * statuses (custom catalog codes: « Souscrit »), before they reach gestion.
+     * The read-only « Suivi gestion » (supervisor, super admin) also lists the
+     * leads in these statuses (custom catalog codes: « Souscrit »), before
+     * they reach gestion.
      *
      * @var array<int, string>
      */
@@ -247,7 +270,7 @@ class GestionService
     {
         $leads = $leads
             ->whereIn('status', $supervisor ? [...self::activeStatuses(), ...self::SUPERVISOR_EXTRA_STATUSES] : self::activeStatuses())
-            ->with($supervisor ? ['assignedAgent:id,name', 'gestionAssignedAgent:id,name'] : ['assignedAgent:id,name'])
+            ->with($supervisor ? ['assignedAgent:id,name', 'gestionAssignedAgent:id,name', 'team:id,name'] : ['assignedAgent:id,name'])
             ->addSelect([
                 'status_since' => LeadStatusHistory::select('created_at')
                     ->whereColumn('lead_id', 'leads.id')
@@ -272,6 +295,7 @@ class GestionService
                 'status_since' => $lead->status_since ? Carbon::parse($lead->status_since)->toIso8601String() : $lead->updated_at?->toIso8601String(),
             ] + ($supervisor ? [
                 'gestionnaire' => $lead->gestionAssignedAgent ? ['id' => $lead->gestionAssignedAgent->id, 'name' => $lead->gestionAssignedAgent->name] : null,
+                'team' => $lead->team ? ['id' => $lead->team->id, 'name' => $lead->team->name] : null,
             ] : []))
             // Gestion works the oldest first; a supervisor follows the latest first
             ->sortBy('status_since', SORT_REGULAR, $supervisor)
@@ -288,7 +312,12 @@ class GestionService
      */
     protected function averageHoursInGestion(Builder $leads): ?float
     {
-        $leadIds = $leads->pluck('id');
+        // Only the leads that went through GESTION (the super admin's scope is every lead)
+        $leadIds = LeadStatusHistory::query()
+            ->where('to_status', LeadStatusEnum::GESTION->value)
+            ->whereIn('lead_id', $leads->select('leads.id'))
+            ->distinct()
+            ->pluck('lead_id');
 
         if ($leadIds->isEmpty()) {
             return null;
