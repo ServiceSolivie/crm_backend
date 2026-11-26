@@ -41,7 +41,8 @@ class LeadResource extends BaseResource
             'status_label' => $this->status_label,
             'comment' => $this->comment,
             // Form answers in a clean shape, to choose who gets the lead: super admin only
-            'qualification' => $this->when($this->seesDoublons($request), fn () => LeadQualification::for($this->resource)),
+            // The form answers (Détaillés, Décennale), shown in the leads table to everyone
+            'qualification' => LeadQualification::for($this->resource),
             // Duplicates are for the super admin only
             'is_doublon' => $this->when($this->seesDoublons($request), fn () => $this->is_doublon),
             'doublon_of' => $this->when($this->seesDoublons($request), fn () => $this->whenLoaded('doublonOf', fn () => $this->doublonOf ? [
