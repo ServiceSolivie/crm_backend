@@ -273,7 +273,8 @@ class GestionService
             ] + ($supervisor ? [
                 'gestionnaire' => $lead->gestionAssignedAgent ? ['id' => $lead->gestionAssignedAgent->id, 'name' => $lead->gestionAssignedAgent->name] : null,
             ] : []))
-            ->sortBy('status_since')
+            // Gestion works the oldest first; a supervisor follows the latest first
+            ->sortBy('status_since', SORT_REGULAR, $supervisor)
             ->values()
             ->all();
     }
