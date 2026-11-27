@@ -9,8 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Receives Ringover webhooks. Answers immediately and processes in the
- * background, so Ringover never times out and retries.
+ * Receives Ringover webhooks. Answers immediately and processes the event
+ * once the answer is sent, so Ringover never times out and retries.
  */
 class RingoverWebhookController extends Controller
 {
@@ -31,7 +31,9 @@ class RingoverWebhookController extends Controller
             return $this->success(null, 'Duplicate delivery ignored');
         }
 
-        ProcessRingoverWebhook::dispatch($event->id);
+        // Processed right after the response is sent: the hosting runs no queue
+        // worker. If it fails, the hourly ringover:sync-calls picks the event up.
+        ProcessRingoverWebhook::dispatchAfterResponse($event->id);
 
         return $this->success(null, 'Received');
     }
